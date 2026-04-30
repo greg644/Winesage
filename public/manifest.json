@@ -1,0 +1,28 @@
+{
+  "name": "WineSage",
+  "short_name": "WineSage",
+  "description": "Quality and Value Intelligence for wine lists",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120e08",
+  "theme_color": "#c9a84c",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
