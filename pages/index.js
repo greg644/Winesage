@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Head from "next/head";
 
 async function callClaude(body) {
@@ -13,55 +13,64 @@ async function callClaude(body) {
   return data;
 }
 
-function markupColor(pct) {
-  if (pct == null) return "var(--text-dim)";
-  if (pct > 200) return "var(--red)";
-  if (pct > 120) return "var(--amber)";
-  return "var(--green)";
-}
-
-function Stars({ n }) {
+function Stars({ count, max = 5 }) {
   return (
-    <span style={{ color: "var(--gold)", letterSpacing: 2, fontSize: "0.85rem" }}>
-      {"★".repeat(n)}{"☆".repeat(5 - n)}
+    <span style={{ display: "inline-flex", gap: 2 }}>
+      {Array.from({ length: max }).map((_, i) => (
+        <svg key={i} width={13} height={13} viewBox="0 0 24 24"
+          fill={i < count ? "#C9A84C" : "none"} stroke="#C9A84C" strokeWidth="1.5">
+          <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
+        </svg>
+      ))}
     </span>
   );
 }
 
+function MarkupBadge({ pct }) {
+  const color = pct == null ? "#5a4f3a" : pct > 220 ? "#E05C5C" : pct > 150 ? "#C9A84C" : "#6BAE75";
+  return <span style={{ color, fontFamily: "monospace", fontSize: 13, fontWeight: 700 }}>{pct != null ? "~" + pct + "%" : "-"}</span>;
+}
+
 export default function AskTrevor() {
+  const [phase, setPhase] = useState("upload");
   const [img64, setImg64] = useState(null);
   const [imgType, setImgType] = useState("image/jpeg");
   const [preview, setPreview] = useState(null);
-  const [status, setStatus] = useState(null);
-  const [error, setError] = useState(null);
+  const [analysing, setAnalysing] = useState(false);
+  const [analyseStatus, setAnalyseStatus] = useState(null);
   const [wines, setWines] = useState(null);
   const [analysis, setAnalysis] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState("list");
+  const [filter, setFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("markup");
+  const [selectedWine, setSelectedWine] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [copied, setCopied] = useState(false);
   const fileRef = useRef();
-  const tableRef = useRef();
+  const chatEndRef = useRef();
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   function loadFile(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
       const dataUrl = ev.target.result;
-      const base64 = dataUrl.split(",")[1];
-      const mediaType = dataUrl.split(";")[0].split(":")[1] || "image/jpeg";
-      setImg64(base64);
-      setImgType(mediaType);
+      setImg64(dataUrl.split(",")[1]);
+      setImgType(dataUrl.split(";")[0].split(":")[1] || "image/jpeg");
       setPreview(dataUrl);
-      setWines(null); setAnalysis(null); setError(null);
     };
-    reader.onerror = () => setError("Could not read file. Please try again.");
     reader.readAsDataURL(file);
   }
 
   async function analyse() {
     if (!img64) return;
-    setBusy(true); setError(null); setWines(null); setAnalysis(null);
-    setStatus("Reading wine list...");
+    setAnalysing(true);
+    setAnalyseStatus("Reading wine list...");
     try {
       const d1 = await callClaude({
         model: "claude-sonnet-4-5-20250929",
@@ -70,7 +79,7 @@ export default function AskTrevor() {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: imgType, data: img64 } },
-            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a JSON array, no markdown, no backticks. Each item: {\"name\":\"full wine name\",\"origin\":\"region, country\",\"price_glass\":null,\"price_bottle\":null,\"category\":\"red/white/rose/sparkling\"}" }
+            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a JSON array, no markdown. Each item: {\"name\":\"full wine name\",\"origin\":\"region, country\",\"price_glass\":null,\"price_bottle\":null,\"category\":\"red/white/rose/sparkling\"}" }
           ]
         }]
       });
@@ -78,17 +87,15 @@ export default function AskTrevor() {
       const t1 = d1.content.find(b => b.type === "text")?.text || "";
       const i1s = t1.indexOf("[");
       const i1e = t1.lastIndexOf("]");
-      if (i1s === -1 || i1e === -1) throw new Error("Could not read wines from image. Got: " + t1.substring(0, 100));
+      if (i1s === -1) throw new Error("Could not read wines from image. Try a clearer photo.");
       const wList = JSON.parse(t1.substring(i1s, i1e + 1));
       if (!wList.length) throw new Error("No wines found in image.");
       setWines(wList);
-      setStatus("Found " + wList.length + " wines - analysing quality and value...");
+      setAnalyseStatus("Found " + wList.length + " wines - researching prices...");
 
       const wineList = wList.map((w, i) => {
         const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
-        const name = (w.name || "").replace(/[^\x20-\x7E]/g, "");
-        const origin = (w.origin || "").replace(/[^\x20-\x7E]/g, "");
-        return (i + 1) + ". " + name + " (" + origin + ") menu price: " + price;
+        return (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ") menu price: " + price;
       }).join("\n");
 
       const d2 = await callClaude({
@@ -96,242 +103,272 @@ export default function AskTrevor() {
         max_tokens: 4000,
         messages: [{
           role: "user",
-          content: "For each wine in the list below, estimate the typical UK retail bottle price in GBP and rate the quality from 1 to 5 stars. Return a JSON array only, no explanation. Each object must have these fields: index (number), retail_price (number or null), quality_stars (integer 1 to 5), quality_note (short string), markup_pct (integer or null). Wines: " + wineList
+          content: "For each wine below, estimate UK retail price and rate quality 1-5. Return JSON array only: [{\"index\":1,\"retail_price\":25,\"quality_stars\":4,\"quality_note\":\"short phrase\",\"markup_pct\":120}]\n\nWines:\n" + wineList
         }]
       });
 
       const t2 = d2.content.find(b => b.type === "text")?.text || "";
       const i2s = t2.indexOf("[");
       const i2e = t2.lastIndexOf("]");
-      if (i2s === -1 || i2e === -1) throw new Error("Analysis failed. Got: " + t2.substring(0, 200));
-      setAnalysis(JSON.parse(t2.substring(i2s, i2e + 1)));
-      setStatus(null);
+      if (i2s === -1) throw new Error("Analysis failed. Please try again.");
+      const analysisData = JSON.parse(t2.substring(i2s, i2e + 1));
+      setAnalysis(analysisData);
+
+      const wineContext = wList.map((w, i) => {
+        const a = analysisData.find(x => x.index === i + 1) || {};
+        const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
+        return w.name + " (" + w.origin + "): Menu " + price + ", Est retail ~GBP" + (a.retail_price || "unknown") + ", Markup ~" + (a.markup_pct || "?") + "%, Quality " + (a.quality_stars || "?") + "/5. " + (a.quality_note || "");
+      }).join("\n");
+
+      setMessages([{
+        role: "assistant",
+        content: "Good evening. I have full sight of tonight's wine list — " + wList.length + " bottles, markups, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget.",
+        wineContext
+      }]);
+
+      setPhase("main");
+      setAnalyseStatus(null);
     } catch (err) {
-      setError(err.message || "Something went wrong. Please try again.");
-      setStatus(null);
+      setAnalyseStatus("Error: " + (err.message || "Something went wrong."));
     } finally {
-      setBusy(false);
+      setAnalysing(false);
     }
   }
 
-  function copyTable() {
-    if (!tableRef.current) return;
-    const range = document.createRange();
-    range.selectNode(tableRef.current);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(range);
-    document.execCommand("copy");
-    window.getSelection().removeAllRanges();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  async function sendMessage() {
+    if (!input.trim() || chatLoading) return;
+    const userMsg = { role: "user", content: input.trim() };
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    setInput("");
+    setChatLoading(true);
+
+    const wineContext = messages[0]?.wineContext || "";
+    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. You speak with dry wit, genuine expertise, and zero tolerance for bad value. You have full sight of tonight's wine list:\n\n" + wineContext + "\n\nBe honest about poor value. Celebrate genuine quality. Keep responses concise — 2-4 sentences unless detail is needed. Never be sycophantic.";
+
+    try {
+      const d = await callClaude({
+        model: "claude-sonnet-4-5-20250929",
+        max_tokens: 500,
+        system: systemPrompt,
+        messages: updated.map(m => ({ role: m.role, content: m.content }))
+      });
+      const reply = d.content.find(b => b.type === "text")?.text || "My apologies — I seem to have lost my tongue momentarily.";
+      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+    } catch {
+      setMessages(prev => [...prev, { role: "assistant", content: "The kitchen appears to have severed my connection. Please try again." }]);
+    }
+    setChatLoading(false);
   }
 
-  function reset() {
-    setWines(null); setAnalysis(null);
-    setImg64(null); setPreview(null); setError(null);
-  }
+  const mergedWines = wines ? wines.map((w, i) => {
+    const a = (analysis || []).find(x => x.index === i + 1) || {};
+    return { ...w, ...a };
+  }) : [];
+
+  const filtered = mergedWines
+    .filter(w => filter === "All" || w.category === filter.toLowerCase())
+    .sort((a, b) => {
+      if (sortBy === "markup") return (a.markup_pct || 999) - (b.markup_pct || 999);
+      if (sortBy === "quality") return (b.quality_stars || 0) - (a.quality_stars || 0);
+      return (a.price_bottle || 0) - (b.price_bottle || 0);
+    });
 
   let bestIdx = null;
   if (analysis) {
     let lo = Infinity;
-    analysis.forEach(a => {
-      if (a.markup_pct != null && a.markup_pct < lo) { lo = a.markup_pct; bestIdx = a.index; }
-    });
+    analysis.forEach(a => { if (a.markup_pct != null && a.markup_pct < lo) { lo = a.markup_pct; bestIdx = a.index; } });
   }
 
-  const btnStyle = {
-    background: "none", border: "1px solid var(--border)",
-    color: "var(--text-dim)", fontFamily: "Montserrat, sans-serif",
-    fontSize: "0.62rem", letterSpacing: "0.18em",
-    textTransform: "uppercase", padding: "10px 18px",
-    cursor: "pointer", borderRadius: 2, transition: "all 0.2s",
+  const S = {
+    bg: "#0f0d09", surface: "#151208", surface2: "#1a1610",
+    border: "#2a2318", gold: "#C9A84C", text: "#e8dfc8", dim: "#5a4f3a",
   };
+
+  if (phase === "upload") return (
+    <>
+      <Head>
+        <title>Ask Trevor</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Ask Trevor" />
+        <meta name="theme-color" content="#0f0d09" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-512.png" />
+      </Head>
+      <div style={{ background: S.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px", fontFamily: "Georgia, serif" }}>
+        <div style={{ borderTop: "2px solid " + S.gold, paddingTop: 24, textAlign: "center", marginBottom: 48, width: "100%", maxWidth: 560 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <span style={{ fontSize: "0.55rem", letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a6e2e", fontFamily: "monospace" }}>Est. 2025</span>
+            <span style={{ fontSize: "0.55rem", letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a6e2e", fontFamily: "monospace" }}>London</span>
+          </div>
+          <div style={{ borderBottom: "1px solid #2a2010", marginBottom: 16 }} />
+          <h1 style={{ fontFamily: "Georgia, serif", fontSize: "clamp(2.6rem, 7vw, 4rem)", fontWeight: 400, fontStyle: "italic", color: S.text, letterSpacing: "0.02em", lineHeight: 1 }}>
+            Ask Trevor
+          </h1>
+          <div style={{ borderTop: "1px solid #2a2010", marginTop: 16, paddingTop: 12 }}>
+            <p style={{ fontSize: "0.58rem", letterSpacing: "0.22em", textTransform: "uppercase", color: "#7a6440", fontFamily: "monospace" }}>
+              Sommelier Intelligence
+            </p>
+          </div>
+          <p style={{ fontSize: "0.85rem", color: "#b09a6e", marginTop: 20, lineHeight: 1.8 }}>
+            Photograph any wine list. Trevor analyses quality and markup, then answers your questions.
+          </p>
+        </div>
+
+        <div
+          onClick={() => !analysing && fileRef.current.click()}
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => { e.preventDefault(); setDragOver(false); loadFile(e.dataTransfer.files[0]); }}
+          style={{
+            maxWidth: 560, width: "100%", border: "1px dashed " + (dragOver ? S.gold : S.border),
+            background: dragOver ? "#1a1610" : S.surface,
+            padding: preview ? "16px" : "48px 32px",
+            textAlign: "center", cursor: analysing ? "wait" : "pointer", transition: "all 0.2s",
+          }}
+        >
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => loadFile(e.target.files[0])} />
+          {preview ? (
+            <div>
+              <img src={preview} alt="wine list" style={{ maxWidth: "100%", maxHeight: 220, objectFit: "contain", display: "block", margin: "0 auto 12px" }} />
+              {!analysing && <span style={{ fontSize: "0.6rem", letterSpacing: "0.15em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace" }}>Tap to change photo</span>}
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: "2.4rem", marginBottom: 14, opacity: 0.4 }}>🍷</div>
+              <div style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: "1.3rem", color: "#b09a6e", marginBottom: 6 }}>Drop a wine list photo here</div>
+              <div style={{ fontSize: "0.62rem", letterSpacing: "0.16em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace" }}>or tap to browse</div>
+            </div>
+          )}
+        </div>
+
+        {img64 && !analysing && (
+          <button onClick={analyse} style={{
+            marginTop: 16, width: "100%", maxWidth: 560, background: "none",
+            border: "1px solid #8a6e2e", color: S.gold, fontFamily: "monospace",
+            fontSize: "0.68rem", letterSpacing: "0.22em", textTransform: "uppercase",
+            padding: 16, cursor: "pointer",
+          }}>Ask Trevor</button>
+        )}
+
+        {analyseStatus && (
+          <div style={{ marginTop: 20, textAlign: "center", fontSize: "0.75rem", color: S.dim, fontFamily: "monospace" }}>
+            {analyseStatus.startsWith("Error") ? (
+              <span style={{ color: "#E05C5C" }}>{analyseStatus}</span>
+            ) : (
+              <span>⏳ {analyseStatus}</span>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
 
   return (
     <>
       <Head>
         <title>Ask Trevor</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="description" content="Your personal sommelier. Photograph any wine list for instant quality and value analysis." />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Ask Trevor" />
-        <meta name="theme-color" content="#120e08" />
+        <meta name="theme-color" content="#0f0d09" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-512.png" />
       </Head>
+      <div style={{ background: S.bg, minHeight: "100vh", color: S.text, fontFamily: "Georgia, serif" }}>
 
-      <main style={{ maxWidth: 960, margin: "0 auto", padding: "40px 20px" }}>
-
-        <header style={{ textAlign: "center", marginBottom: 48, borderTop: "2px solid #c9a84c", paddingTop: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-            <span style={{ fontSize: "0.55rem", letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a6e2e" }}>Est. 2025</span>
-            <span style={{ fontSize: "0.55rem", letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a6e2e" }}>London</span>
-          </div>
-          <div style={{ borderBottom: "1px solid #2a2010", marginBottom: 16 }} />
-          <h1 style={{
-            fontFamily: "Playfair Display, Georgia, serif",
-            fontSize: "clamp(2.6rem, 7vw, 4rem)",
-            fontWeight: 400,
-            fontStyle: "italic",
-            color: "#e2cfa0",
-            letterSpacing: "0.02em",
-            lineHeight: 1,
-          }}>
-            Ask Trevor
-          </h1>
-          <div style={{ borderTop: "1px solid #2a2010", marginTop: 16, paddingTop: 12 }}>
-            <p style={{ fontSize: "0.58rem", letterSpacing: "0.22em", textTransform: "uppercase", color: "#7a6440" }}>
-              Quality &amp; Value Intelligence
-            </p>
-          </div>
-          <p style={{ fontSize: "0.8rem", color: "var(--text-mid)", marginTop: 20, maxWidth: 420, margin: "20px auto 0", lineHeight: 1.8 }}>
-            Photograph any wine list. Instantly see quality ratings and how much the restaurant is marking up each bottle over UK retail.
-          </p>
-        </header>
-
-        <div
-          onClick={() => fileRef.current.click()}
-          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={e => { e.preventDefault(); setDragOver(false); loadFile(e.dataTransfer.files[0]); }}
-          style={{
-            maxWidth: 600, margin: "0 auto 24px",
-            border: "1px dashed " + (dragOver ? "var(--gold-dim)" : "var(--border)"),
-            background: dragOver ? "var(--surface2)" : "var(--surface)",
-            padding: preview ? "16px" : "52px 32px",
-            textAlign: "center", cursor: "pointer",
-            transition: "all 0.2s", borderRadius: 2,
-          }}
-        >
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-            onChange={e => loadFile(e.target.files[0])} />
-          {preview ? (
-            <div>
-              <img src={preview} alt="wine list" style={{ maxWidth: "100%", maxHeight: 240, objectFit: "contain", display: "block", margin: "0 auto 12px" }} />
-              <span style={{ fontSize: "0.6rem", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-dim)" }}>
-                Tap to change photo
-              </span>
+        {/* Header */}
+        <div style={{ borderBottom: "1px solid " + S.border, padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", background: S.surface }}>
+          <div>
+            <div style={{ fontFamily: "Georgia, serif", fontSize: 22, fontWeight: 700, fontStyle: "italic", color: S.gold }}>Ask Trevor</div>
+            <div style={{ fontSize: 11, letterSpacing: "0.18em", color: S.dim, marginTop: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
+              {wines ? wines.length + " bottles analysed" : "Wine Intelligence"}
             </div>
-          ) : (
-            <div>
-              <div style={{ fontSize: "2.4rem", marginBottom: 14, opacity: 0.4 }}>🍷</div>
-              <div style={{ fontFamily: "Playfair Display, Georgia, serif", fontStyle: "italic", fontSize: "1.3rem", color: "var(--text-mid)", marginBottom: 6 }}>
-                Drop a wine list photo here
-              </div>
-              <div style={{ fontSize: "0.62rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--text-dim)" }}>
-                or tap to browse
-              </div>
-            </div>
-          )}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {["list", "chat"].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                background: activeTab === tab ? S.gold : "transparent",
+                color: activeTab === tab ? S.bg : S.dim,
+                border: "1px solid " + (activeTab === tab ? S.gold : S.border),
+                padding: "7px 16px", cursor: "pointer", fontFamily: "monospace",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
+              }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
+            ))}
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); }} style={{
+              background: "transparent", color: S.dim, border: "1px solid " + S.border,
+              padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
+            }}>New List</button>
+          </div>
         </div>
 
-        {img64 && !busy && (
-          <div style={{ maxWidth: 600, margin: "0 auto 40px" }}>
-            <button onClick={analyse} style={{
-              width: "100%", background: "none",
-              border: "1px solid var(--gold-dim)", color: "var(--gold)",
-              fontFamily: "Montserrat, sans-serif",
-              fontSize: "0.68rem", letterSpacing: "0.22em",
-              textTransform: "uppercase", padding: 16,
-              cursor: "pointer", borderRadius: 2, transition: "all 0.2s",
-            }}>
-              Ask Trevor
-            </button>
-          </div>
-        )}
-
-        {status && (
-          <div style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--text-dim)", marginBottom: 32 }}>
-            <span style={{
-              display: "inline-block", width: 12, height: 12,
-              border: "2px solid var(--border)", borderTopColor: "var(--gold)",
-              borderRadius: "50%", animation: "spin 0.8s linear infinite",
-              marginRight: 10, verticalAlign: "middle",
-            }} />
-            {status}
-          </div>
-        )}
-
-        {error && (
-          <div style={{
-            maxWidth: 600, margin: "0 auto 32px",
-            background: "#1e0e0a", border: "1px solid #5a2a1e",
-            color: "#c07060", padding: "14px 18px",
-            fontSize: "0.76rem", lineHeight: 1.6, borderRadius: 2,
-          }}>
-            {error}
-          </div>
-        )}
-
-        {wines && analysis && (
-          <div style={{ animation: "fadeIn 0.4s ease" }}>
-            <div style={{
-              fontSize: "0.6rem", letterSpacing: "0.24em",
-              textTransform: "uppercase", color: "var(--text-dim)",
-              marginBottom: 16, paddingBottom: 10,
-              borderBottom: "1px solid var(--border)",
-            }}>
-              Quality &amp; Value Analysis — {wines.length} wines
+        {/* Wine List Tab */}
+        {activeTab === "list" && (
+          <div style={{ padding: "20px 24px" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 10, letterSpacing: "0.2em", color: S.dim, fontFamily: "monospace" }}>FILTER</span>
+              {["All", "Red", "White", "Rose", "Sparkling"].map(f => (
+                <button key={f} onClick={() => setFilter(f)} style={{
+                  background: filter === f ? "rgba(201,168,76,0.15)" : "transparent",
+                  color: filter === f ? S.gold : S.dim,
+                  border: "1px solid " + (filter === f ? S.gold : S.border),
+                  padding: "4px 12px", cursor: "pointer", fontFamily: "monospace",
+                  fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.15s"
+                }}>{f}</button>
+              ))}
+              <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 10, letterSpacing: "0.2em", color: S.dim, fontFamily: "monospace" }}>SORT</span>
+                {[["markup", "Markup"], ["quality", "Quality"], ["price_bottle", "Price"]].map(([val, label]) => (
+                  <button key={val} onClick={() => setSortBy(val)} style={{
+                    background: sortBy === val ? "rgba(201,168,76,0.1)" : "transparent",
+                    color: sortBy === val ? S.gold : S.dim,
+                    border: "1px solid " + (sortBy === val ? S.gold : S.border),
+                    padding: "4px 10px", cursor: "pointer", fontFamily: "monospace",
+                    fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", transition: "all 0.15s"
+                  }}>{label}</button>
+                ))}
+              </div>
             </div>
 
-            <div style={{ overflowX: "auto", marginBottom: 20 }}>
-              <table ref={tableRef} style={{
-                width: "100%", borderCollapse: "collapse",
-                background: "var(--surface)", border: "1px solid var(--border)",
-                fontSize: "0.78rem",
-              }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
-                  <tr style={{ background: "var(--surface2)" }}>
-                    {["Wine", "Menu", "Est. Retail", "Markup", "Quality", "Note"].map(h => (
-                      <th key={h} style={{
-                        padding: "12px 14px", textAlign: "left",
-                        fontSize: "0.56rem", letterSpacing: "0.18em",
-                        textTransform: "uppercase", color: "var(--text-dim)",
-                        borderBottom: "1px solid var(--border)",
-                        fontWeight: 600, whiteSpace: "nowrap",
-                      }}>{h}</th>
+                  <tr style={{ background: S.surface }}>
+                    {["Wine", "Menu", "Est. Retail", "Markup", "Quality", "Note", ""].map(h => (
+                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {wines.map((w, i) => {
-                    const a = analysis.find(x => x.index === i + 1) || {};
-                    const isBest = (i + 1) === bestIdx;
-                    const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass + "/glass" : "—";
-                    const retail = a.retail_price ? "~£" + a.retail_price : "—";
-                    const markup = a.markup_pct != null ? "~" + a.markup_pct + "%" : "—";
+                  {filtered.map((w, i) => {
+                    const isBest = w.index === bestIdx;
+                    const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass + "/gl" : "-";
+                    const retail = w.retail_price ? "~£" + w.retail_price : "-";
                     return (
-                      <tr key={i} style={{ background: isBest ? "#1f1a09" : "transparent" }}>
-                        <td style={{ padding: "12px 14px", borderBottom: "1px solid var(--surface2)", minWidth: 180 }}>
-                          <span style={{
-                            fontFamily: "Playfair Display, Georgia, serif",
-                            fontSize: "0.98rem",
-                            color: isBest ? "var(--gold)" : "var(--text)",
-                            fontWeight: 600, display: "block",
-                          }}>
+                      <tr key={i} onClick={() => setSelectedWine(selectedWine?.name === w.name ? null : w)}
+                        style={{ background: isBest ? "rgba(201,168,76,0.05)" : "transparent", borderBottom: "1px solid " + S.surface2, cursor: "pointer" }}>
+                        <td style={{ padding: "12px 12px", minWidth: 180 }}>
+                          <div style={{ fontFamily: "Georgia, serif", fontSize: "0.95rem", color: isBest ? S.gold : S.text, fontWeight: 600 }}>
                             {w.name}
-                            {isBest && (
-                              <span style={{
-                                fontSize: "0.5rem", letterSpacing: "0.1em",
-                                textTransform: "uppercase",
-                                background: "#c9a84c18", color: "var(--gold)",
-                                border: "1px solid #c9a84c44",
-                                padding: "2px 5px", marginLeft: 8,
-                                verticalAlign: "middle",
-                              }}>Best Value</span>
-                            )}
-                          </span>
-                          <span style={{ fontSize: "0.67rem", color: "var(--text-dim)" }}>{w.origin}</span>
+                            {isBest && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(201,168,76,0.15)", color: S.gold, border: "1px solid rgba(201,168,76,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Best Value</span>}
+                          </div>
+                          <div style={{ fontSize: "0.67rem", color: S.dim }}>{w.origin}</div>
+                          {selectedWine?.name === w.name && w.quality_note && (
+                            <div style={{ marginTop: 8, fontSize: "0.75rem", color: "#9a8e75", fontStyle: "italic", background: "rgba(201,168,76,0.06)", padding: "8px 12px", borderLeft: "2px solid " + S.gold }}>
+                              {w.quality_note}
+                            </div>
+                          )}
                         </td>
-                        <td style={{ padding: "12px 14px", borderBottom: "1px solid var(--surface2)", color: "var(--text-mid)", whiteSpace: "nowrap" }}>{menuPrice}</td>
-                        <td style={{ padding: "12px 14px", borderBottom: "1px solid var(--surface2)", color: "var(--text-mid)", whiteSpace: "nowrap" }}>{retail}</td>
-                        <td style={{ padding: "12px 14px", borderBottom: "1px solid var(--surface2)", color: markupColor(a.markup_pct), fontWeight: 600, whiteSpace: "nowrap" }}>{markup}</td>
-                        <td style={{ padding: "12px 14px", borderBottom: "1px solid var(--surface2)", whiteSpace: "nowrap" }}>
-                          {a.quality_stars ? <Stars n={a.quality_stars} /> : "—"}
-                        </td>
-                        <td style={{ padding: "12px 14px", borderBottom: "1px solid var(--surface2)", fontSize: "0.7rem", color: "var(--text-dim)", minWidth: 140 }}>
-                          {a.quality_note || ""}
+                        <td style={{ padding: "12px 12px", color: S.text, whiteSpace: "nowrap", fontFamily: "monospace" }}>{menuPrice}</td>
+                        <td style={{ padding: "12px 12px", color: "#7a6d55", whiteSpace: "nowrap", fontFamily: "monospace" }}>{retail}</td>
+                        <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} /></td>
+                        <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>{w.quality_stars ? <Stars count={w.quality_stars} /> : "-"}</td>
+                        <td style={{ padding: "12px 12px", fontSize: "0.7rem", color: S.dim, minWidth: 140 }}>{w.quality_note || ""}</td>
+                        <td style={{ padding: "12px 12px" }}>
+                          <button onClick={e => { e.stopPropagation(); setActiveTab("chat"); setTimeout(() => setInput("Tell me about " + w.name), 100); }}
+                            style={{ background: "transparent", border: "1px solid " + S.border, color: S.dim, padding: "3px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.15s" }}>
+                            Ask
+                          </button>
                         </td>
                       </tr>
                     );
@@ -339,29 +376,73 @@ export default function AskTrevor() {
                 </tbody>
               </table>
             </div>
-
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <button onClick={copyTable} style={btnStyle}>
-                {copied ? "Copied!" : "Copy table for email"}
-              </button>
-              <button onClick={reset} style={btnStyle}>
-                Analyse another list
-              </button>
-            </div>
           </div>
         )}
 
-        <footer style={{
-          marginTop: 80, paddingTop: 24,
-          borderTop: "1px solid var(--border)",
-          textAlign: "center",
-          fontSize: "0.6rem", letterSpacing: "0.12em",
-          color: "var(--text-dim)", textTransform: "uppercase",
-        }}>
-          Ask Trevor · Powered by Claude AI
-        </footer>
+        {/* Chat Tab */}
+        {activeTab === "chat" && (
+          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 73px)" }}>
+            <div style={{ padding: "12px 24px", borderBottom: "1px solid " + S.border, display: "flex", alignItems: "center", gap: 12, background: "#0d0b07" }}>
+              <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#2a2210", border: "1px solid " + S.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🍷</div>
+              <div>
+                <div style={{ fontFamily: "Georgia, serif", fontSize: 15, color: S.gold, fontWeight: 600 }}>Trevor</div>
+                <div style={{ fontSize: 10, color: S.dim, letterSpacing: "0.1em", fontFamily: "monospace" }}>Head Sommelier</div>
+              </div>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {["Best value?", "Under £60?", "With fish?", "Impress me"].map(q => (
+                  <button key={q} onClick={() => setInput(q)} style={{
+                    background: "transparent", border: "1px solid " + S.border, color: S.dim,
+                    padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em", transition: "all 0.15s"
+                  }}>{q}</button>
+                ))}
+              </div>
+            </div>
 
-      </main>
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+              {messages.map((msg, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                  {msg.role === "assistant" && (
+                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#2a2210", border: "1px solid " + S.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, marginRight: 10, flexShrink: 0, marginTop: 4 }}>🍷</div>
+                  )}
+                  <div style={{
+                    maxWidth: "75%", padding: "12px 16px",
+                    background: msg.role === "user" ? "rgba(201,168,76,0.1)" : S.surface,
+                    border: "1px solid " + (msg.role === "user" ? "rgba(201,168,76,0.25)" : S.border),
+                    fontFamily: "Georgia, serif", fontSize: 14, lineHeight: 1.7, color: S.text
+                  }}>
+                    {msg.content.split("**").map((part, j) =>
+                      j % 2 === 1 ? <strong key={j} style={{ color: S.gold }}>{part}</strong> : part
+                    )}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#2a2210", border: "1px solid " + S.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>🍷</div>
+                  <div style={{ display: "flex", gap: 5, padding: "12px 16px", background: S.surface, border: "1px solid " + S.border }}>
+                    {[0, 1, 2].map(j => <div key={j} style={{ width: 6, height: 6, borderRadius: "50%", background: S.gold, opacity: 0.4 + j * 0.2 }} />)}
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div style={{ padding: "12px 24px", borderTop: "1px solid " + S.border, background: "#0d0b07", display: "flex", gap: 10 }}>
+              <input value={input} onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && sendMessage()}
+                placeholder="Ask Trevor about tonight's list..."
+                style={{ flex: 1, background: S.surface, border: "1px solid " + S.border, color: S.text, padding: "11px 14px", fontFamily: "Georgia, serif", fontSize: 14, outline: "none" }}
+              />
+              <button onClick={sendMessage} disabled={chatLoading || !input.trim()} style={{
+                background: chatLoading || !input.trim() ? S.surface2 : S.gold,
+                color: chatLoading || !input.trim() ? S.dim : S.bg,
+                border: "none", padding: "11px 20px", cursor: chatLoading || !input.trim() ? "not-allowed" : "pointer",
+                fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
+              }}>{chatLoading ? "..." : "Send"}</button>
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
