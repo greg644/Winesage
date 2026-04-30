@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@300;400;500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #120e08;
+  --surface: #1c1509;
+  --surface2: #261c0d;
+  --border: #3a2a14;
+  --gold: #c9a84c;
+  --gold-dim: #8a6e2e;
+  --text: #e2cfa0;
+  --text-dim: #7a6440;
+  --text-mid: #b09a6e;
+  --red: #c0604a;
+  --amber: #d4943a;
+  --green: #7aab6e;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Montserrat', sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
