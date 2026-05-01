@@ -13,6 +13,13 @@ async function callClaude(body) {
   return data;
 }
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 function Stars({ count, max = 5 }) {
   return (
     <span style={{ display: "inline-flex", gap: 2 }}>
@@ -50,6 +57,7 @@ export default function AskTrevor() {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef();
   const chatEndRef = useRef();
+  const wineContextRef = useRef("");
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -114,13 +122,14 @@ export default function AskTrevor() {
       const analysisData = JSON.parse(t2.substring(i2s, i2e + 1));
       setAnalysis(analysisData);
 
-      const wineContext = wList.map((w, i) => {
+      const ctx = wList.map((w, i) => {
         const a = analysisData.find(x => x.index === i + 1) || {};
         const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
         return w.name + " (" + w.origin + "): Menu " + price + ", Est retail ~GBP" + (a.retail_price || "unknown") + ", Markup ~" + (a.markup_pct || "?") + "%, Quality " + (a.quality_stars || "?") + "/5. " + (a.quality_note || "");
       }).join("\n");
+      wineContextRef.current = ctx;
 
-      // Calculate sweet spot for opening message
+      // Sweet Spot for opening message
       let ssIdx = null, ssScore = -Infinity;
       wList.forEach((w, i) => {
         const a = analysisData.find(x => x.index === i + 1) || {};
@@ -135,8 +144,7 @@ export default function AskTrevor() {
 
       setMessages([{
         role: "assistant",
-        content: "Good evening. I have full sight of tonight's wine list — " + wList.length + " bottles, markups, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
-        wineContext
+        content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " bottles, markups, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
       }]);
 
       setPhase("main");
@@ -148,16 +156,16 @@ export default function AskTrevor() {
     }
   }
 
-  async function sendMessage() {
-    if (!input.trim() || chatLoading) return;
-    const userMsg = { role: "user", content: input.trim() };
+  async function sendMessage(overrideText) {
+    const text = overrideText || input.trim();
+    if (!text || chatLoading) return;
+    const userMsg = { role: "user", content: text };
     const updated = [...messages, userMsg];
     setMessages(updated);
     setInput("");
     setChatLoading(true);
 
-    const wineContext = messages[0]?.wineContext || "";
-    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. You speak with dry wit, genuine expertise, and zero tolerance for bad value. You have full sight of tonight's wine list:\n\n" + wineContext + "\n\nBe honest about poor value. Celebrate genuine quality. Keep responses concise — 2-4 sentences unless detail is needed. Never be sycophantic.";
+    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. You speak with dry wit, genuine expertise, and zero tolerance for bad value. You have full sight of tonight's wine list:\n\n" + wineContextRef.current + "\n\nBe honest about poor value. Celebrate genuine quality. Keep responses concise — 2-4 sentences unless detail is needed. Never be sycophantic.";
 
     try {
       const d = await callClaude({
@@ -193,8 +201,6 @@ export default function AskTrevor() {
     analysis.forEach(a => { if (a.markup_pct != null && a.markup_pct < lo) { lo = a.markup_pct; bestIdx = a.index; } });
   }
 
-  // Sweet Spot: Quality² x 10 / (markup/100) / (price^0.4)
-  // Ceiling: £100, minimum 1 quality star, must have markup data
   let sweetSpotIdx = null;
   let sweetSpotScore = -Infinity;
   let sweetSpotNote = "";
@@ -202,10 +208,9 @@ export default function AskTrevor() {
     wines.forEach((w, i) => {
       const a = analysis.find(x => x.index === i + 1) || {};
       const price = w.price_bottle || w.price_glass;
+      const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
       if (!price || price > 100) return;
       if (!a.quality_stars || a.quality_stars < 1) return;
-      // Calculate markup if missing but retail price available
-      const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
       if (!markup || markup <= 0) return;
       const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
       if (score > sweetSpotScore) {
@@ -293,7 +298,7 @@ export default function AskTrevor() {
             {analyseStatus.startsWith("Error") ? (
               <span style={{ color: "#E05C5C" }}>{analyseStatus}</span>
             ) : (
-              <span>⏳ {analyseStatus}</span>
+              <span>Analysing... {analyseStatus}</span>
             )}
           </div>
         )}
@@ -313,7 +318,6 @@ export default function AskTrevor() {
       </Head>
       <div style={{ background: S.bg, minHeight: "100vh", color: S.text, fontFamily: "Georgia, serif" }}>
 
-        {/* Header */}
         <div style={{ borderBottom: "1px solid " + S.border, padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", background: S.surface }}>
           <div>
             <div style={{ fontFamily: "Georgia, serif", fontSize: 22, fontWeight: 700, fontStyle: "italic", color: S.gold }}>Ask Trevor</div>
@@ -331,26 +335,16 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
           </div>
         </div>
 
-        {/* Wine List Tab */}
         {activeTab === "list" && (
           <div style={{ padding: "20px 24px" }}>
-            {/* Debug panel - remove later */}
-            {wines && analysis && (
-              <div style={{ marginBottom: 16, background: "#1a0a0a", border: "1px solid #5a2a1e", padding: "12px 16px", fontSize: 11, fontFamily: "monospace", color: "#c07060", lineHeight: 1.8 }}>
-                <div>Wines: {wines.length} | Analysis: {analysis.length} | sweetSpotIdx: {String(sweetSpotIdx)}</div>
-                <div>First wine price_bottle: {String(wines[0]?.price_bottle)} price_glass: {String(wines[0]?.price_glass)}</div>
-                <div>First analysis: index={String(analysis[0]?.index)} quality={String(analysis[0]?.quality_stars)} markup={String(analysis[0]?.markup_pct)} retail={String(analysis[0]?.retail_price)}</div>
-              </div>
-            )}
 
-            {/* Sweet Spot Card */}
             {sweetSpotIdx && wines && (
               <div style={{ marginBottom: 24, border: "1px solid " + S.gold, background: "rgba(201,168,76,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
                 <div style={{ fontSize: "1.6rem" }}>🎯</div>
@@ -363,7 +357,7 @@ export default function AskTrevor() {
                     {wines[sweetSpotIdx - 1]?.origin} · £{wines[sweetSpotIdx - 1]?.price_bottle || wines[sweetSpotIdx - 1]?.price_glass} · {sweetSpotNote}
                   </div>
                 </div>
-                <button onClick={() => { setActiveTab("chat"); setTimeout(() => setInput("Tell me about the sweet spot pick — " + (wines[sweetSpotIdx - 1]?.name || "")), 100); }}
+                <button onClick={() => { setActiveTab("chat"); setTimeout(() => sendMessage("Tell me about the sweet spot pick — " + (wines[sweetSpotIdx - 1]?.name || "")), 100); }}
                   style={{ background: S.gold, color: S.bg, border: "none", padding: "8px 16px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
                   Ask Trevor
                 </button>
@@ -407,16 +401,17 @@ export default function AskTrevor() {
                 <tbody>
                   {filtered.map((w, i) => {
                     const isBest = w.index === bestIdx;
+                    const isSweet = w.index === sweetSpotIdx;
                     const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass + "/gl" : "-";
                     const retail = w.retail_price ? "~£" + w.retail_price : "-";
                     return (
                       <tr key={i} onClick={() => setSelectedWine(selectedWine?.name === w.name ? null : w)}
-                        style={{ background: isBest ? "rgba(201,168,76,0.05)" : "transparent", borderBottom: "1px solid " + S.surface2, cursor: "pointer" }}>
+                        style={{ background: isSweet ? "rgba(107,174,117,0.04)" : isBest ? "rgba(201,168,76,0.05)" : "transparent", borderBottom: "1px solid " + S.surface2, cursor: "pointer" }}>
                         <td style={{ padding: "12px 12px", minWidth: 180 }}>
-                          <div style={{ fontFamily: "Georgia, serif", fontSize: "0.95rem", color: isBest ? S.gold : S.text, fontWeight: 600 }}>
+                          <div style={{ fontFamily: "Georgia, serif", fontSize: "0.95rem", color: isSweet ? "#6BAE75" : isBest ? S.gold : S.text, fontWeight: 600 }}>
                             {w.name}
                             {isBest && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(201,168,76,0.15)", color: S.gold, border: "1px solid rgba(201,168,76,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Best Value</span>}
-                            {w.index === sweetSpotIdx && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(107,174,117,0.15)", color: "#6BAE75", border: "1px solid rgba(107,174,117,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>🎯 Sweet Spot</span>}
+                            {isSweet && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(107,174,117,0.15)", color: "#6BAE75", border: "1px solid rgba(107,174,117,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Sweet Spot</span>}
                           </div>
                           <div style={{ fontSize: "0.67rem", color: S.dim }}>{w.origin}</div>
                           {selectedWine?.name === w.name && w.quality_note && (
@@ -431,7 +426,7 @@ export default function AskTrevor() {
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>{w.quality_stars ? <Stars count={w.quality_stars} /> : "-"}</td>
                         <td style={{ padding: "12px 12px", fontSize: "0.7rem", color: S.dim, minWidth: 140 }}>{w.quality_note || ""}</td>
                         <td style={{ padding: "12px 12px" }}>
-                          <button onClick={e => { e.stopPropagation(); setActiveTab("chat"); setTimeout(() => setInput("Tell me about " + w.name), 100); }}
+                          <button onClick={e => { e.stopPropagation(); setActiveTab("chat"); setTimeout(() => sendMessage("Tell me about " + w.name), 100); }}
                             style={{ background: "transparent", border: "1px solid " + S.border, color: S.dim, padding: "3px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.15s" }}>
                             Ask
                           </button>
@@ -445,7 +440,6 @@ export default function AskTrevor() {
           </div>
         )}
 
-        {/* Chat Tab */}
         {activeTab === "chat" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 73px)" }}>
             <div style={{ padding: "12px 24px", borderBottom: "1px solid " + S.border, display: "flex", alignItems: "center", gap: 12, background: "#0d0b07" }}>
@@ -454,17 +448,27 @@ export default function AskTrevor() {
                 <div style={{ fontFamily: "Georgia, serif", fontSize: 15, color: S.gold, fontWeight: 600 }}>Trevor</div>
                 <div style={{ fontSize: 10, color: S.dim, letterSpacing: "0.1em", fontFamily: "monospace" }}>Head Sommelier</div>
               </div>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 {["Best value?", "Under £60?", "With fish?", "Impress me"].map(q => (
-                  <button key={q} onClick={() => setInput(q)} style={{
+                  <button key={q} onClick={() => sendMessage(q)} style={{
                     background: "transparent", border: "1px solid " + S.border, color: S.dim,
                     padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em", transition: "all 0.15s"
                   }}>{q}</button>
                 ))}
+                <button onClick={() => setMessages(messages.slice(0, 1))} style={{
+                  background: "transparent", border: "1px solid " + S.border, color: S.dim,
+                  padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em"
+                }}>Clear</button>
               </div>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+              {messages.length === 1 && (
+                <div style={{ textAlign: "center", opacity: 0.2, marginTop: 20 }}>
+                  <div style={{ fontSize: "3rem" }}>🍷</div>
+                  <div style={{ fontSize: "0.7rem", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "monospace", marginTop: 8 }}>Try asking: what should I order with steak?</div>
+                </div>
+              )}
               {messages.map((msg, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
                   {msg.role === "assistant" && (
@@ -486,7 +490,8 @@ export default function AskTrevor() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#2a2210", border: "1px solid " + S.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>🍷</div>
                   <div style={{ display: "flex", gap: 5, padding: "12px 16px", background: S.surface, border: "1px solid " + S.border }}>
-                    {[0, 1, 2].map(j => <div key={j} style={{ width: 6, height: 6, borderRadius: "50%", background: S.gold, opacity: 0.4 + j * 0.2 }} />)}
+                    <style>{`@keyframes trevorPulse { 0%,100%{opacity:0.2;transform:scale(0.8)} 50%{opacity:1;transform:scale(1.2)} }`}</style>
+                    {[0, 1, 2].map(j => <div key={j} style={{ width: 6, height: 6, borderRadius: "50%", background: S.gold, animation: "trevorPulse 1.2s ease infinite", animationDelay: j * 0.2 + "s" }} />)}
                   </div>
                 </div>
               )}
@@ -496,10 +501,10 @@ export default function AskTrevor() {
             <div style={{ padding: "12px 24px", borderTop: "1px solid " + S.border, background: "#0d0b07", display: "flex", gap: 10 }}>
               <input value={input} onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && sendMessage()}
-                placeholder="Ask Trevor about tonight's list..."
+                placeholder="Ask Trevor about today's list..."
                 style={{ flex: 1, background: S.surface, border: "1px solid " + S.border, color: S.text, padding: "11px 14px", fontFamily: "Georgia, serif", fontSize: 14, outline: "none" }}
               />
-              <button onClick={sendMessage} disabled={chatLoading || !input.trim()} style={{
+              <button onClick={() => sendMessage()} disabled={chatLoading || !input.trim()} style={{
                 background: chatLoading || !input.trim() ? S.surface2 : S.gold,
                 color: chatLoading || !input.trim() ? S.dim : S.bg,
                 border: "none", padding: "11px 20px", cursor: chatLoading || !input.trim() ? "not-allowed" : "pointer",
