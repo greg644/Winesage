@@ -126,8 +126,9 @@ content: [
   wList.forEach((w, i) => {
     const a = analysisData.find(x => x.index === i + 1) || {};
     const price = w.price_bottle || w.price_glass;
-    if (!price || price > 100 || !a.quality_stars || !a.markup_pct) return;
-    const score = (Math.pow(a.quality_stars, 2) * 10) / (a.markup_pct / 100) / Math.pow(price, 0.4);
+    const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
+    if (!price || price > 100 || !a.quality_stars || !markup || markup <= 0) return;
+    const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
     if (score > ssScore) { ssScore = score; ssIdx = i; }
   });
   const ssWine = ssIdx !== null ? wList[ssIdx] : null;
@@ -209,8 +210,10 @@ const a = analysis.find(x => x.index === i + 1) || {};
 const price = w.price_bottle || w.price_glass;
 if (!price || price > 100) return;
 if (!a.quality_stars || a.quality_stars < 1) return;
-if (!a.markup_pct) return;
-const score = (Math.pow(a.quality_stars, 2) * 10) / (a.markup_pct / 100) / Math.pow(price, 0.4);
+// Calculate markup if missing but retail price available
+const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
+if (!markup || markup <= 0) return;
+const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
 if (score > sweetSpotScore) {
 sweetSpotScore = score;
 sweetSpotIdx = i + 1;
