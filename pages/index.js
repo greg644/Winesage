@@ -458,7 +458,6 @@ export default function AskTrevor() {
                 <button onClick={() => setMessages(messages.slice(0, 1))} style={{
                   background: "transparent", border: "1px solid " + S.border, color: S.dim,
                   padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em"
-                }}>Clear</button>
               </div>
             </div>
 
