@@ -455,10 +455,7 @@ export default function AskTrevor() {
                     padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em", transition: "all 0.15s"
                   }}>{q}</button>
                 ))}
-                <button onClick={() => setMessages(messages.slice(0, 1))} style={{
-                  background: "transparent", border: "1px solid " + S.border, color: S.dim,
-                  padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em"
-              </div>
+            </div>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
