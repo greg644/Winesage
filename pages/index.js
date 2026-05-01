@@ -181,7 +181,7 @@ setChatLoading(false);
 
 const mergedWines = wines ? wines.map((w, i) => {
 const a = (analysis || []).find(x => x.index === i + 1) || {};
-return { …w, …a };
+return { …w, …a, index: i + 1 };
 }) : [];
 
 const filtered = mergedWines
