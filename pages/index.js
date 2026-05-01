@@ -351,6 +351,15 @@ return (
     {/* Wine List Tab */}
     {activeTab === "list" && (
       <div style={{ padding: "20px 24px" }}>
+        {/* Debug panel - remove later */}
+        {wines && analysis && (
+          <div style={{ marginBottom: 16, background: "#1a0a0a", border: "1px solid #5a2a1e", padding: "12px 16px", fontSize: 11, fontFamily: "monospace", color: "#c07060", lineHeight: 1.8 }}>
+            <div>Wines: {wines.length} | Analysis: {analysis.length} | sweetSpotIdx: {String(sweetSpotIdx)}</div>
+            <div>First wine price_bottle: {String(wines[0]?.price_bottle)} price_glass: {String(wines[0]?.price_glass)}</div>
+            <div>First analysis: index={String(analysis[0]?.index)} quality={String(analysis[0]?.quality_stars)} markup={String(analysis[0]?.markup_pct)} retail={String(analysis[0]?.retail_price)}</div>
+          </div>
+        )}
+
         {/* Sweet Spot Card */}
         {sweetSpotIdx && wines && (
           <div style={{ marginBottom: 24, border: "1px solid " + S.gold, background: "rgba(201,168,76,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
