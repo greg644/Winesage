@@ -1,7 +1,7 @@
 {
-  "name": "WineSage",
-  "short_name": "WineSage",
-  "description": "Quality and Value Intelligence for wine lists",
+  "name": "Ask Trevor",
+  "short_name": "Ask Trevor",
+  "description": "Your personal sommelier. Quality and value intelligence for any wine list.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#120e08",
