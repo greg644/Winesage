@@ -19,7 +19,11 @@ export default async function handler(req, res) {
 
     const tokenText = await tokenRes.text();
     let tokenData;
-    try { tokenData = JSON.parse(tokenText); } catch(e) { return res.status(500).json({ error: 'Token not JSON', raw: tokenText.substring(0, 200) }); }
+    try {
+      tokenData = JSON.parse(tokenText);
+    } catch(e) {
+      return res.status(500).json({ error: 'Token not JSON', status: tokenRes.status, raw: tokenText.substring(0, 500) });
+    }
     if (!tokenData.access_token) return res.status(500).json({ error: 'No access token', details: tokenData });
 
     const { rows } = req.body;
