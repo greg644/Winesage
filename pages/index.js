@@ -182,6 +182,43 @@ export default function AskTrevor() {
     setChatLoading(false);
   }
 
+  function exportCSV() {
+    const restaurant = window.prompt("What's the restaurant?", "");
+    if (restaurant === null) return;
+    const date = new Date().toLocaleDateString("en-GB");
+    const rows = [
+      ["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Markup %", "Quality Stars", "Note", "Sweet Spot", "Best Value"]
+    ];
+    (wines || []).forEach((w, i) => {
+      const a = (analysis || []).find(x => x.index === i + 1) || {};
+      const isSweet = (i + 1) === sweetSpotIdx;
+      const isBest = (i + 1) === bestIdx;
+      rows.push([
+        date,
+        restaurant || "Unknown",
+        w.name || "",
+        w.origin || "",
+        w.category || "",
+        w.price_bottle || w.price_glass || "",
+        a.retail_price || "",
+        a.markup_pct || "",
+        a.quality_stars || "",
+        (a.quality_note || "").replace(/,/g, ";"),
+        isSweet ? "Yes" : "",
+        isBest ? "Yes" : ""
+      ]);
+    });
+    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("
+");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (restaurant || "wine-list") + "-" + date.replace(/\//g, "-") + ".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const mergedWines = wines ? wines.map((w, i) => {
     const a = (analysis || []).find(x => x.index === i + 1) || {};
     return { ...w, ...a, index: i + 1 };
@@ -364,6 +401,14 @@ export default function AskTrevor() {
               </div>
             )}
 
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+              <button onClick={exportCSV} style={{
+                background: "transparent", border: "1px solid " + S.border, color: S.dim,
+                padding: "6px 14px", cursor: "pointer", fontFamily: "monospace",
+                fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.15s"
+              }}>Export CSV</button>
+            </div>
+
             <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 10, letterSpacing: "0.2em", color: S.dim, fontFamily: "monospace" }}>FILTER</span>
               {["All", "Red", "White", "Rose", "Sparkling"].map(f => (
@@ -455,7 +500,8 @@ export default function AskTrevor() {
                     padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em", transition: "all 0.15s"
                   }}>{q}</button>
                 ))}
-            </div>
+
+              </div>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
