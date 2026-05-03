@@ -4,15 +4,9 @@ export default async function handler(req, res) {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
     const sheetId = process.env.GOOGLE_SHEET_ID;
+    if (!sheetId) return res.status(500).json({ error: 'No GOOGLE_SHEET_ID' });
 
-    if (!sheetId) return res.status(500).json({ error: 'No GOOGLE_SHEET_ID env var' });
-
-    let jwt;
-    try {
-      jwt = await createJWT(credentials);
-    } catch (e) {
-      return res.status(500).json({ error: 'JWT creation failed: ' + e.message });
-    }
+    const jwt = await createJWT(credentials);
 
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -23,68 +17,49 @@ export default async function handler(req, res) {
       }),
     });
 
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) {
-      return res.status(500).json({ error: 'Token fetch failed', details: tokenData });
-    }
+    const tokenText = await tokenRes.text();
+    let tokenData;
+    try { tokenData = JSON.parse(tokenText); } catch(e) { return res.status(500).json({ error: 'Token not JSON', raw: tokenText.substring(0, 200) }); }
+    if (!tokenData.access_token) return res.status(500).json({ error: 'No access token', details: tokenData });
 
     const { rows } = req.body;
     const appendRes = await fetch(
       'https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/Sheet1!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + tokenData.access_token,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tokenData.access_token },
         body: JSON.stringify({ values: rows }),
       }
     );
 
     const result = await appendRes.json();
-    if (result.error) {
-      return res.status(500).json({ error: 'Sheets API error', details: result.error });
-    }
+    if (result.error) return res.status(500).json({ error: 'Sheets API error', details: result.error });
     res.status(200).json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message, stack: err.stack });
+    res.status(500).json({ error: err.message });
   }
 }
 
 async function createJWT(credentials) {
-  const header = { alg: 'RS256', typ: 'JWT' };
+  const b64url = (str) => Buffer.from(str).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
   const now = Math.floor(Date.now() / 1000);
-  const claim = {
+  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const payload = b64url(JSON.stringify({
     iss: credentials.client_email,
     scope: 'https://www.googleapis.com/auth/spreadsheets',
     aud: 'https://oauth2.googleapis.com/token',
     exp: now + 3600,
     iat: now,
-  };
+  }));
 
-  const enc = (obj) => btoa(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  const unsigned = enc(header) + '.' + enc(claim);
+  const unsigned = header + '.' + payload;
 
-  const keyData = credentials.private_key
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\n/g, '');
-
-  const binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8', binaryKey.buffer,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false, ['sign']
-  );
-
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    cryptoKey,
-    new TextEncoder().encode(unsigned)
-  );
-
-  const sig = btoa(String.fromCharCode(...new Uint8Array(signature)))
+  const { createSign } = await import('node:crypto');
+  const sign = createSign('RSA-SHA256');
+  sign.update(unsigned);
+  const signature = sign.sign(credentials.private_key, 'base64')
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-  return unsigned + '.' + sig;
+  return unsigned + '.' + signature;
 }
