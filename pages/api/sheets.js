@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     if (!sheetId) return res.status(500).json({ error: 'No GOOGLE_SHEET_ID' });
 
-    const jwt = createJWT(credentials);
+    const jwt = createJWT(credentials, crypto);
 
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     try {
       tokenData = JSON.parse(tokenText);
     } catch(e) {
-      return res.status(500).json({ error: 'Token not JSON', status: tokenRes.status, raw: tokenText.substring(0, 500) });
+      return res.status(500).json({ error: 'Token not JSON', raw: tokenText.substring(0, 500) });
     }
     if (!tokenData.access_token) return res.status(500).json({ error: 'No access token', details: tokenData });
 
@@ -46,9 +46,8 @@ export default async function handler(req, res) {
   }
 }
 
-function createJWT(credentials) {
+function createJWT(credentials, crypto) {
   const b64url = (str) => Buffer.from(str).toString('base64url');
-
   const now = Math.floor(Date.now() / 1000);
   const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const payload = b64url(JSON.stringify({
@@ -58,11 +57,8 @@ function createJWT(credentials) {
     exp: now + 3600,
     iat: now,
   }));
-
   const unsigned = header + '.' + payload;
   const sign = crypto.createSign('RSA-SHA256');
   sign.update(unsigned);
-  const signature = sign.sign(credentials.private_key, 'base64url');
-
-  return unsigned + '.' + signature;
+  return unsigned + '.' + sign.sign(credentials.private_key, 'base64url');
 }
