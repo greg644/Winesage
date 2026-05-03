@@ -147,6 +147,10 @@ export default function AskTrevor() {
         content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " bottles, markups, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
       }]);
 
+      // Prompt for restaurant name and save to Google Sheets
+      const restaurant = window.prompt("What's the restaurant? (for your log)", "") || "Unknown";
+      saveToSheets(wList, analysisData, restaurant);
+
       setPhase("main");
       setAnalyseStatus(null);
     } catch (err) {
@@ -217,6 +221,52 @@ export default function AskTrevor() {
     a.download = (restaurant || "wine-list") + "-" + date.replace(/\//g, "-") + ".csv";
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function saveToSheets(wList, analysisData, restaurant) {
+    const date = new Date().toLocaleDateString("en-GB");
+    const rows = [];
+    // Add header if first row
+    rows.push(["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Markup %", "Quality Stars", "Note", "Sweet Spot", "Best Value"]);
+    wList.forEach((w, i) => {
+      const a = analysisData.find(x => x.index === i + 1) || {};
+      const price = w.price_bottle || w.price_glass;
+      const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
+      let ssIdx = null, ssScore = -Infinity;
+      wList.forEach((w2, j) => {
+        const a2 = analysisData.find(x => x.index === j + 1) || {};
+        const p2 = w2.price_bottle || w2.price_glass;
+        const m2 = a2.markup_pct || (a2.retail_price && p2 ? Math.round(((p2 - a2.retail_price) / a2.retail_price) * 100) : null);
+        if (!p2 || p2 > 100 || !a2.quality_stars || !m2 || m2 <= 0) return;
+        const score = (Math.pow(a2.quality_stars, 2) * 10) / (m2 / 100) / Math.pow(p2, 0.4);
+        if (score > ssScore) { ssScore = score; ssIdx = j + 1; }
+      });
+      let bstIdx = null, loMarkup = Infinity;
+      analysisData.forEach(a2 => { if (a2.markup_pct != null && a2.markup_pct < loMarkup) { loMarkup = a2.markup_pct; bstIdx = a2.index; } });
+      rows.push([
+        date,
+        restaurant || "Unknown",
+        w.name || "",
+        w.origin || "",
+        w.category || "",
+        price || "",
+        a.retail_price || "",
+        markup || "",
+        a.quality_stars || "",
+        (a.quality_note || "").replace(/,/g, ";"),
+        (i + 1) === ssIdx ? "Yes" : "",
+        (i + 1) === bstIdx ? "Yes" : ""
+      ]);
+    });
+    try {
+      await fetch("/api/sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+    } catch (e) {
+      console.error("Sheets save failed:", e);
+    }
   }
 
   const mergedWines = wines ? wines.map((w, i) => {
