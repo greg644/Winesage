@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -6,7 +8,7 @@ export default async function handler(req, res) {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     if (!sheetId) return res.status(500).json({ error: 'No GOOGLE_SHEET_ID' });
 
-    const jwt = await createJWT(credentials);
+    const jwt = createJWT(credentials);
 
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -44,8 +46,8 @@ export default async function handler(req, res) {
   }
 }
 
-async function createJWT(credentials) {
-  const b64url = (str) => Buffer.from(str).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+function createJWT(credentials) {
+  const b64url = (str) => Buffer.from(str).toString('base64url');
 
   const now = Math.floor(Date.now() / 1000);
   const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
@@ -58,12 +60,9 @@ async function createJWT(credentials) {
   }));
 
   const unsigned = header + '.' + payload;
-
-  const { createSign } = await import('node:crypto');
-  const sign = createSign('RSA-SHA256');
+  const sign = crypto.createSign('RSA-SHA256');
   sign.update(unsigned);
-  const signature = sign.sign(credentials.private_key, 'base64')
-    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const signature = sign.sign(credentials.private_key, 'base64url');
 
   return unsigned + '.' + signature;
 }
