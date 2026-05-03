@@ -258,13 +258,17 @@ export default function AskTrevor() {
       ]);
     });
     try {
-      await fetch("/api/sheets", {
+      const sheetsRes = await fetch("/api/sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
       });
+      const sheetsData = await sheetsRes.json();
+      if (!sheetsData.success) {
+        alert("Sheets error: " + JSON.stringify(sheetsData));
+      }
     } catch (e) {
-      console.error("Sheets save failed:", e);
+      alert("Sheets fetch failed: " + e.message);
     }
   }
 
