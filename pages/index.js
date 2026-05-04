@@ -87,7 +87,7 @@ export default function AskTrevor() {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: imgType, data: img64 } },
-            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start your response with [ and end with ]. Each item must have: name, origin, price_glass (number or null), price_bottle (number or null), category (red/white/rose/sparkling)." }
+            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. Each item must have: name, origin, price_glass (number or null - use 175ml price if available), price_bottle (number or null - use 75cl/750ml price only), glass_size (125, 175 or 250 - whichever glass price you used, or null), category (red/white/rose/sparkling). Ignore magnum and other large format prices." }
           ]
         }]
       });
@@ -102,7 +102,14 @@ export default function AskTrevor() {
       setAnalyseStatus("Found " + wList.length + " wines - researching prices...");
 
       const wineList = wList.map((w, i) => {
-        const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
+        let bottlePrice = w.price_bottle;
+        if (!bottlePrice && w.price_glass) {
+          // Estimate bottle price from glass price
+          if (w.glass_size === 125) bottlePrice = Math.round(w.price_glass * 6);
+          else if (w.glass_size === 250) bottlePrice = Math.round(w.price_glass * 3);
+          else bottlePrice = Math.round(w.price_glass * 4.3); // assume 175ml
+        }
+        const price = bottlePrice ? "GBP" + bottlePrice + (w.price_bottle ? "" : " (est from glass)") : "unknown";
         return (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ") menu price: " + price;
       }).join("\n");
 
