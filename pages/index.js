@@ -87,7 +87,7 @@ export default function AskTrevor() {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: imgType, data: img64 } },
-            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a JSON array, no markdown. Each item: {\"name\":\"full wine name\",\"origin\":\"region, country\",\"price_glass\":null,\"price_bottle\":null,\"category\":\"red/white/rose/sparkling\"}" }
+            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start your response with [ and end with ]. Each item must have: name, origin, price_glass (number or null), price_bottle (number or null), category (red/white/rose/sparkling)." }
           ]
         }]
       });
@@ -111,7 +111,7 @@ export default function AskTrevor() {
         max_tokens: 4000,
         messages: [{
           role: "user",
-          content: "For each wine below, estimate UK retail price and rate quality 1-5. Return JSON array only: [{\"index\":1,\"retail_price\":25,\"quality_stars\":4,\"quality_note\":\"short phrase\",\"markup_pct\":120}]\n\nWines:\n" + wineList
+          content: "For each wine below, estimate UK retail price and rate quality 1-5. Return a raw JSON array only. No markdown, no backticks, no code blocks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:120}]\n\nWines:\n" + wineList
         }]
       });
 
