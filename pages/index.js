@@ -82,12 +82,12 @@ export default function AskTrevor() {
     try {
       const d1 = await callClaude({
         model: "claude-sonnet-4-5-20250929",
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages: [{
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: imgType, data: img64 } },
-            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. Each item must have: name, origin, price_glass (number or null - use 175ml price if available), price_bottle (number or null - use 75cl/750ml price only), glass_size (125, 175 or 250 - whichever glass price you used, or null), category (red/white/rose/sparkling). Ignore magnum and other large format prices." }
+            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. IMPORTANT: create exactly ONE entry per wine even if multiple sizes or prices are shown. Each item must have: name, origin, price_glass (number or null - use 175ml price if available, else 125ml), price_bottle (number or null - use 75cl/750ml price only), glass_size (125, 175 or 250 - whichever glass price you used, or null), category (red/white/rose/sparkling). Ignore magnum, 1500ml and other large format prices. Do not create duplicate entries for the same wine." }
           ]
         }]
       });
