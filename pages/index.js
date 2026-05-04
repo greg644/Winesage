@@ -55,6 +55,9 @@ export default function AskTrevor() {
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [foodInput, setFoodInput] = useState("");
+  const [pairingResult, setPairingResult] = useState(null);
+  const [pairingLoading, setPairingLoading] = useState(false);
   const fileRef = useRef();
   const chatEndRef = useRef();
   const wineContextRef = useRef("");
@@ -229,6 +232,26 @@ export default function AskTrevor() {
     a.download = (restaurant || "wine-list") + "-" + date.replace(/\//g, "-") + ".csv";
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function askFoodPairing() {
+    if (!foodInput.trim() || pairingLoading) return;
+    setPairingLoading(true);
+    setPairingResult(null);
+    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. You have full sight of tonight's wine list:\n\n" + wineContextRef.current + "\n\nBe concise and specific. Recommend one wine from the list only.";
+    try {
+      const d = await callClaude({
+        model: "claude-sonnet-4-5-20250929",
+        max_tokens: 200,
+        system: systemPrompt,
+        messages: [{ role: "user", content: "I am eating " + foodInput.trim() + ". Which wine on this list should I order?" }]
+      });
+      const reply = d.content.find(b => b.type === "text")?.text || "I seem to have lost my tongue momentarily.";
+      setPairingResult(reply);
+    } catch(e) {
+      setPairingResult("My apologies — something went wrong.");
+    }
+    setPairingLoading(false);
   }
 
   async function saveToSheets(wList, analysisData, restaurant) {
@@ -471,6 +494,33 @@ export default function AskTrevor() {
               }}>Export CSV</button>
             </div>
 
+            {/* Food Pairing */}
+            <div style={{ marginBottom: 24, border: "1px solid " + S.border, background: S.surface, padding: "16px 20px" }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace", marginBottom: 12 }}>Trevor's Food Pairing</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  value={foodInput}
+                  onChange={e => setFoodInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && askFoodPairing()}
+                  placeholder="What are you eating?"
+                  style={{ flex: 1, background: S.surface2, border: "1px solid " + S.border, color: S.text, padding: "9px 12px", fontFamily: "Georgia, serif", fontSize: 13, outline: "none" }}
+                />
+                <button onClick={askFoodPairing} disabled={pairingLoading || !foodInput.trim()} style={{
+                  background: pairingLoading || !foodInput.trim() ? S.surface2 : S.gold,
+                  color: pairingLoading || !foodInput.trim() ? S.dim : S.bg,
+                  border: "none", padding: "9px 16px", cursor: pairingLoading || !foodInput.trim() ? "not-allowed" : "pointer",
+                  fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
+                }}>{pairingLoading ? "..." : "Ask"}</button>
+              </div>
+              {pairingResult && (
+                <div style={{ marginTop: 12, fontSize: "0.82rem", color: S.text, fontFamily: "Georgia, serif", lineHeight: 1.7, borderTop: "1px solid " + S.border, paddingTop: 12, fontStyle: "italic" }}>
+                  {pairingResult.split("**").map((part, j) =>
+                    j % 2 === 1 ? <strong key={j} style={{ color: S.gold, fontStyle: "normal" }}>{part}</strong> : part
+                  )}
+                </div>
+              )}
+            </div>
+
             <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 10, letterSpacing: "0.2em", color: S.dim, fontFamily: "monospace" }}>FILTER</span>
               {["All", "Red", "White", "Rose", "Sparkling"].map(f => (
@@ -556,7 +606,7 @@ export default function AskTrevor() {
                 <div style={{ fontSize: 10, color: S.dim, letterSpacing: "0.1em", fontFamily: "monospace" }}>Head Sommelier</div>
               </div>
               <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                {["Best value?", "Under £60?", "With fish?", "Impress me"].map(q => (
+                {["Best value?", "Under £60?", "Best quality?", "Impress me"].map(q => (
                   <button key={q} onClick={() => sendMessage(q)} style={{
                     background: "transparent", border: "1px solid " + S.border, color: S.dim,
                     padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em", transition: "all 0.15s"
