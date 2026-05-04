@@ -198,42 +198,6 @@ export default function AskTrevor() {
     setChatLoading(false);
   }
 
-  function exportCSV() {
-    const restaurant = window.prompt("What's the restaurant?", "");
-    if (restaurant === null) return;
-    const date = new Date().toLocaleDateString("en-GB");
-    const rows = [
-      ["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Markup %", "Quality Stars", "Note", "Sweet Spot", "Best Value"]
-    ];
-    (wines || []).forEach((w, i) => {
-      const a = (analysis || []).find(x => x.index === i + 1) || {};
-      const isSweet = (i + 1) === sweetSpotIdx;
-      const isBest = (i + 1) === bestIdx;
-      rows.push([
-        date,
-        restaurant || "Unknown",
-        w.name || "",
-        w.origin || "",
-        w.category || "",
-        w.price_bottle || w.price_glass || "",
-        a.retail_price || "",
-        a.markup_pct || "",
-        a.quality_stars || "",
-        (a.quality_note || "").replace(/,/g, ";"),
-        isSweet ? "Yes" : "",
-        isBest ? "Yes" : ""
-      ]);
-    });
-    const csvRows = rows.map(r => r.map(c => String(c)).join(",")); const csv = csvRows.join(String.fromCharCode(10));
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (restaurant || "wine-list") + "-" + date.replace(/\//g, "-") + ".csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
   async function askFoodPairing() {
     if (!foodInput.trim() || pairingLoading) return;
     setPairingLoading(true);
@@ -485,14 +449,6 @@ export default function AskTrevor() {
                 </button>
               </div>
             )}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-              <button onClick={exportCSV} style={{
-                background: "transparent", border: "1px solid " + S.border, color: S.dim,
-                padding: "6px 14px", cursor: "pointer", fontFamily: "monospace",
-                fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.15s"
-              }}>Export CSV</button>
-            </div>
 
             {/* Food Pairing */}
             <div style={{ marginBottom: 24, border: "1px solid " + S.border, background: S.surface, padding: "16px 20px" }}>
