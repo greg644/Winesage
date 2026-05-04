@@ -93,7 +93,7 @@ export default function AskTrevor() {
       });
 
       const t1raw = d1.content.find(b => b.type === "text")?.text || "";
-      const t1 = t1raw.replace(/`/g, "").replace(/```json/g, "").replace(/```/g, "");
+      const t1 = t1raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
       const i1s = t1.indexOf("[");
       const i1e = t1.lastIndexOf("]");
       if (i1s === -1) throw new Error("Could not read wines from image. Try a clearer photo.");
@@ -124,7 +124,7 @@ export default function AskTrevor() {
       });
 
       const t2raw = d2.content.find(b => b.type === "text")?.text || "";
-      const t2 = t2raw.replace(/`/g, "").replace(/```json/g, "").replace(/```/g, "");
+      const t2 = t2raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
       const i2s = t2.indexOf("[");
       const i2e = t2.lastIndexOf("]");
       if (i2s === -1) throw new Error("Analysis failed. Please try again.");
