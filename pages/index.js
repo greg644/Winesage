@@ -55,6 +55,10 @@ export default function AskTrevor() {
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [showChoicePrompt, setShowChoicePrompt] = useState(false);
+  const [chosenWine, setChosenWine] = useState(null);
+  const [choiceComment, setChoiceComment] = useState(null);
+  const choiceTimerRef = useRef(null);
   const [foodInput, setFoodInput] = useState("");
   const [pairingResult, setPairingResult] = useState(null);
   const [pairingLoading, setPairingLoading] = useState(false);
@@ -163,6 +167,10 @@ export default function AskTrevor() {
       const restaurant = window.prompt("What's the restaurant? (for your log)", "") || "Unknown";
       saveToSheets(wList, analysisData, restaurant);
 
+      // Start 5 minute timer for choice prompt
+      if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
+      choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
+
       setPhase("main");
       setAnalyseStatus(null);
     } catch (err) {
@@ -216,6 +224,39 @@ export default function AskTrevor() {
       setPairingResult("My apologies — something went wrong.");
     }
     setPairingLoading(false);
+  }
+
+  async function handleChoice(wine) {
+    setChosenWine(wine);
+    setShowChoicePrompt(false);
+    setChatLoading(true);
+    setActiveTab("chat");
+
+    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. Be brief — one sentence of dry wit congratulating or gently teasing the choice. Never be sycophantic.";
+    try {
+      const d = await callClaude({
+        model: "claude-sonnet-4-5-20250929",
+        max_tokens: 100,
+        system: systemPrompt,
+        messages: [{ role: "user", content: "I chose the " + wine.name + " (" + wine.origin + ") at £" + (wine.price_bottle || wine.price_glass) + "." }]
+      });
+      const reply = d.content.find(b => b.type === "text")?.text || "An excellent choice.";
+      setChoiceComment(reply);
+      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+    } catch(e) {
+      setMessages(prev => [...prev, { role: "assistant", content: "An excellent choice." }]);
+    }
+    setChatLoading(false);
+
+    // Log chosen wine to sheets
+    const date = new Date().toLocaleDateString("en-GB");
+    try {
+      await fetch("/api/sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: [[date, "CHOSEN", wine.name, wine.origin, wine.category || "", wine.price_bottle || wine.price_glass || "", "", "", "", "", "", ""]] }),
+      });
+    } catch(e) { console.error("Sheet log failed", e); }
   }
 
   async function saveToSheets(wList, analysisData, restaurant) {
@@ -624,6 +665,38 @@ export default function AskTrevor() {
           </div>
         )}
       </div>
+    {/* Choice prompt modal */}
+    {showChoicePrompt && wines && (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: "0 0 24px" }}>
+        <div style={{ background: "#151208", border: "1px solid #c9a84c", borderRadius: 4, padding: "20px 20px", width: "100%", maxWidth: 560, margin: "0 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#2a2210", border: "1px solid #c9a84c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🍷</div>
+            <div>
+              <div style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 15, color: "#c9a84c" }}>Trevor</div>
+              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#5a4f3a", letterSpacing: "0.1em" }}>What did you order?</div>
+            </div>
+            <button onClick={() => setShowChoicePrompt(false)} style={{ marginLeft: "auto", background: "transparent", border: "none", color: "#5a4f3a", fontSize: 18, cursor: "pointer" }}>×</button>
+          </div>
+          <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+            {wines.map((w, i) => (
+              <button key={i} onClick={() => handleChoice(w)} style={{
+                background: "transparent", border: "0.5px solid #2a2318", color: "#b09a6e",
+                padding: "10px 12px", cursor: "pointer", textAlign: "left", borderRadius: 2,
+                fontFamily: "Georgia, serif", fontSize: 13, transition: "all 0.15s"
+              }}>
+                <div style={{ color: "#e2cfa0", fontSize: 13 }}>{w.name}</div>
+                <div style={{ fontSize: 11, color: "#5a4f3a", marginTop: 2 }}>{w.origin} · £{w.price_bottle || w.price_glass}</div>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setShowChoicePrompt(false)} style={{
+            marginTop: 12, width: "100%", background: "transparent", border: "0.5px solid #2a2318",
+            color: "#5a4f3a", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.15em",
+            textTransform: "uppercase", padding: 10, cursor: "pointer"
+          }}>Skip</button>
+        </div>
+      </div>
+    )}
     </>
   );
 }
