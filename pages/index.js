@@ -43,7 +43,7 @@ function MarkupBadge({ pct, searching }) {
   if (searching && pct == null) return <span style={{ color: "#3a3020", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.05em" }}>searching...</span>;
   if (pct == null) return <span style={{ color: "#3a3020", fontSize: 12 }}>—</span>;
   const color = pct > 250 ? "#E05C5C" : pct > 150 ? "#C9A84C" : "#6BAE75";
-  const label = pct > 250 ? "High" : pct > 150 ? "Typical" : "Good Value";
+  const label = pct > 250 ? "High" : pct > 150 ? "Typical" : "Good";
   return <span style={{ color, fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>{label}</span>;
 }
 
@@ -228,16 +228,6 @@ export default function AskTrevor() {
         const cleaned = t2.substring(i2s, i2e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
         analysisData = JSON.parse(cleaned);
       }
-      // Debug - show first result
-      if (analysisData && analysisData.length > 0) {
-        const first = analysisData[0];
-        setAnalyseStatus("Phase 2 got: index=" + first.index + " retail=" + first.retail_price + " markup=" + first.markup_pct);
-        setTimeout(() => setAnalyseStatus(null), 5000);
-      } else {
-        setAnalyseStatus("Phase 2: no data returned");
-        setTimeout(() => setAnalyseStatus(null), 5000);
-      }
-
       // Merge retail prices, vintage notes and drinking window into existing quality data
       setAnalysis(prev => {
         if (!prev) return analysisData;
@@ -675,7 +665,7 @@ export default function AskTrevor() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ background: S.surface }}>
-                    {["Wine", "Menu", "Retail", "Markup", "Quality", "Vintage", "Drink", "Note", ""].map(h => (
+                    {["Wine", "Menu Price", "Value", "Quality", "Vintage", "Drink", "Note", ""].map(h => (
                       <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
                     ))}
                   </tr>
@@ -703,7 +693,6 @@ export default function AskTrevor() {
                           )}
                         </td>
                         <td style={{ padding: "12px 12px", color: S.text, whiteSpace: "nowrap", fontFamily: "monospace" }}>{menuPrice}</td>
-                        <td style={{ padding: "12px 12px", color: "#7a6d55", whiteSpace: "nowrap", fontFamily: "monospace" }}>{retail}</td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} searching={searchingPrices} /></td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>{w.quality_stars ? <Stars count={w.quality_stars} /> : "-"}</td>
                         <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: w.vintage_note && w.vintage_note.toLowerCase().includes("exceptional") ? "#6BAE75" : w.vintage_note && w.vintage_note.toLowerCase().includes("poor") ? "#E05C5C" : S.dim, whiteSpace: "nowrap" }}>{w.vintage_note || (searchingPrices ? "..." : "-")}</td>
