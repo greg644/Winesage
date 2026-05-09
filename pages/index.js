@@ -539,8 +539,8 @@ export default function AskTrevor() {
           const dw = a.drinking_window.toLowerCase();
           const cy = new Date().getFullYear();
           const yrs = dw.match(/20[2-9][0-9]/g);
-          let dl = dw.includes("now") ? "Drink now" : dw.includes("past") ? "Past best" : dw.includes("young") || dw.includes("needs") ? "Too young" : a.drinking_window;
-          if (yrs) { const mn = Math.min(...yrs.map(Number)), mx = Math.max(...yrs.map(Number)); dl = mx < cy ? "Past best" : mn <= cy ? "Drink now" : "Too young"; }
+          let dl = dw.includes("now") ? "Drink now" : dw.includes("past") ? "Past best" : dw.includes("young") || dw.includes("needs") ? "A bit young" : a.drinking_window;
+          if (yrs) { const mn = Math.min(...yrs.map(Number)), mx = Math.max(...yrs.map(Number)); dl = mx < cy ? "Past best" : mn <= cy ? "Drink now" : "A bit young"; }
           ctx.fillText(dl.substring(0, 9), colX[5], y);
         } else { ctx.fillText("-", colX[5], y); }
 
@@ -855,9 +855,9 @@ export default function AskTrevor() {
                               const maxYear = Math.max(...years.map(Number));
                               if (maxYear < currentYear) return "Past best";
                               if (minYear <= currentYear && maxYear >= currentYear) return "Drink now";
-                              if (minYear > currentYear) return "Too young";
+                              if (minYear > currentYear) return "A bit young";
                             }
-                            if (dw.includes("young") || dw.includes("needs")) return "Too young";
+                            if (dw.includes("young") || dw.includes("needs")) return "A bit young";
                             if (dw.includes("now")) return "Drink now";
                             return w.drinking_window;
                           })() : (searchingPrices ? "..." : "-")}
