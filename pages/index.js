@@ -136,7 +136,6 @@ export default function AskTrevor() {
       }).join("\n");
 
       // Analysis with web search loop
-      const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
       const analysisPrompt = hasPrices
         ? "For each wine below, search for the average UK retail bottle price across mainstream retailers (Waitrose, Majestic, Berry Bros, Naked Wines) and rate quality 1-5. Return a raw JSON array only. No markdown, no backticks, no code blocks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:120}]\n\nWines:\n" + wineList
         : "For each wine below, rate the quality 1-5 and estimate the typical UK retail price. There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
