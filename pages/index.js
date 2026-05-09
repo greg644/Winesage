@@ -511,13 +511,19 @@ export default function AskTrevor() {
         const isBest = (i + 1) === bestIdx;
         const isBQ = (i + 1) === bestQualityIdx;
 
-        if (isSweet || isBest) {
-          ctx.fillStyle = "rgba(201,168,76,0.06)";
+        if (isSweet) {
+          ctx.fillStyle = "rgba(107,174,117,0.1)";
+          ctx.fillRect(0, y - 26, width, rowHeight);
+        } else if (isBQ) {
+          ctx.fillStyle = "rgba(100,149,237,0.1)";
+          ctx.fillRect(0, y - 26, width, rowHeight);
+        } else if (isBest) {
+          ctx.fillStyle = "rgba(201,168,76,0.1)";
           ctx.fillRect(0, y - 26, width, rowHeight);
         }
 
         ctx.font = "13px Georgia, serif";
-        ctx.fillStyle = isSweet || isBest ? "#c9a84c" : "#f0e6c8";
+        ctx.fillStyle = isSweet ? "#6BAE75" : isBQ ? "#6495ED" : isBest ? "#c9a84c" : "#f0e6c8";
         ctx.fillText((w.name || "").substring(0, 50), colX[0], y);
 
         const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass : "-";
