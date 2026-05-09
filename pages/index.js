@@ -455,7 +455,7 @@ export default function AskTrevor() {
 
   const S = {
     bg: "#0f0d09", surface: "#151208", surface2: "#1a1610",
-    border: "#2a2318", gold: "#C9A84C", text: "#f0e6c8", dim: "#5a4f3a",
+    border: "#2a2318", gold: "#C9A84C", text: "#f0e6c8", dim: "#c8b48a",
   };
 
   if (phase === "upload") return (
