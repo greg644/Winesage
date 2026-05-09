@@ -34,8 +34,10 @@ function Stars({ count, max = 5 }) {
 }
 
 function MarkupBadge({ pct }) {
-  const color = pct == null ? "#5a4f3a" : pct > 220 ? "#E05C5C" : pct > 150 ? "#C9A84C" : "#6BAE75";
-  return <span style={{ color, fontFamily: "monospace", fontSize: 13, fontWeight: 700 }}>{pct != null ? "~" + pct + "%" : "-"}</span>;
+  if (pct == null) return <span style={{ color: "#5a4f3a", fontSize: 16 }}>●</span>;
+  const color = pct > 250 ? "#E05C5C" : pct > 150 ? "#C9A84C" : "#6BAE75";
+  const label = pct > 250 ? "High" : pct > 150 ? "Typical" : "Good Value";
+  return <span style={{ color, fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>{label}</span>;
 }
 
 export default function AskTrevor() {
@@ -94,7 +96,7 @@ export default function AskTrevor() {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: imgType, data: img64 } },
-            { type: "text", text: "Extract all wines from this wine list image. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. IMPORTANT: create exactly ONE entry per wine even if multiple sizes or prices are shown. Each item must have: name, origin, price_glass (number or null - use 175ml price if available, else 125ml), price_bottle (number or null - use 75cl/750ml price only), glass_size (125, 175 or 250 - whichever glass price you used, or null), category (red/white/rose/sparkling). Ignore magnum, 1500ml and other large format prices. Do not create duplicate entries for the same wine." }
+            { type: "text", text: "Extract all wines from this wine list image. Some lists may not have prices — that is fine, just set price_glass and price_bottle to null. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. IMPORTANT: create exactly ONE entry per wine. Each item must have: name, origin, price_glass (number or null), price_bottle (number or null), glass_size (125, 175 or 250 or null), category (red/white/rose/sparkling). If no prices are shown set all price fields to null. Do not create duplicate entries for the same wine. Ignore magnum and large format prices." }
           ]
         }]
       });
@@ -104,10 +106,22 @@ export default function AskTrevor() {
       const i1s = t1.indexOf("[");
       const i1e = t1.lastIndexOf("]");
       if (i1s === -1) throw new Error("Could not read wines from image. Try a clearer photo.");
-      const wList = JSON.parse(t1.substring(i1s, i1e + 1));
+      let wList;
+      try {
+        wList = JSON.parse(t1.substring(i1s, i1e + 1));
+      } catch(e) {
+        // Try cleaning the string further
+        const cleaned = t1.substring(i1s, i1e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
+        wList = JSON.parse(cleaned);
+      }
       if (!wList.length) throw new Error("No wines found in image.");
       setWines(wList);
-      setAnalyseStatus("Found " + wList.length + " wines - researching prices...");
+      const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
+      if (!hasPrices) {
+        setAnalyseStatus("Found " + wList.length + " wines - analysing quality (no prices on this list)...");
+      } else {
+        setAnalyseStatus("Found " + wList.length + " wines - researching prices...");
+      }
 
       const wineList = wList.map((w, i) => {
         let bottlePrice = w.price_bottle;
@@ -121,21 +135,47 @@ export default function AskTrevor() {
         return (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ") menu price: " + price;
       }).join("\n");
 
-      const d2 = await callClaude({
-        model: "claude-sonnet-4-5-20250929",
-        max_tokens: 4000,
-        messages: [{
-          role: "user",
-          content: "For each wine below, estimate UK retail price and rate quality 1-5. Return a raw JSON array only. No markdown, no backticks, no code blocks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:120}]\n\nWines:\n" + wineList
-        }]
-      });
+      // Analysis with web search loop
+      const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
+      const analysisPrompt = hasPrices
+        ? "For each wine below, search for the average UK retail bottle price across mainstream retailers (Waitrose, Majestic, Berry Bros, Naked Wines) and rate quality 1-5. Return a raw JSON array only. No markdown, no backticks, no code blocks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:120}]\n\nWines:\n" + wineList
+        : "For each wine below, rate the quality 1-5 and estimate the typical UK retail price. There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
+      let analysisText = "";
+      let searchMessages = [{ role: "user", content: analysisPrompt }];
+      for (let si = 0; si < 15; si++) {
+        const sd = await callClaude({
+          model: "claude-sonnet-4-5-20250929",
+          max_tokens: 4000,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages: searchMessages,
+        });
+        searchMessages.push({ role: "assistant", content: sd.content });
+        if (sd.stop_reason === "end_turn") {
+          analysisText = sd.content.filter(b => b.type === "text").map(b => b.text).join("");
+          break;
+        }
+        if (sd.stop_reason === "tool_use") {
+          const toolResults = sd.content.filter(b => b.type === "tool_use").map(b => ({ type: "tool_result", tool_use_id: b.id, content: "done" }));
+          searchMessages.push({ role: "user", content: toolResults });
+          setAnalyseStatus("Searching retail prices... (" + (si + 1) + ")");
+        } else {
+          analysisText = sd.content.filter(b => b.type === "text").map(b => b.text).join("");
+          break;
+        }
+      }
 
-      const t2raw = d2.content.find(b => b.type === "text")?.text || "";
+      const t2raw = analysisText;
       const t2 = t2raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
       const i2s = t2.indexOf("[");
       const i2e = t2.lastIndexOf("]");
       if (i2s === -1) throw new Error("Analysis failed. Please try again.");
-      const analysisData = JSON.parse(t2.substring(i2s, i2e + 1));
+      let analysisData;
+      try {
+        analysisData = JSON.parse(t2.substring(i2s, i2e + 1));
+      } catch(e) {
+        const cleaned = t2.substring(i2s, i2e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
+        analysisData = JSON.parse(cleaned);
+      }
       setAnalysis(analysisData);
 
       const ctx = wList.map((w, i) => {
