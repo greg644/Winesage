@@ -140,6 +140,14 @@ export default function AskTrevor() {
       // Show app immediately with quality data
       setPhase("main");
       setAnalyseStatus(null);
+      // Set basic Trevor context so chat works immediately
+      const basicCtx = wList.map((w, i) => {
+        const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
+        return w.name + " (" + w.origin + "): Menu " + price;
+      }).join("\n");
+      wineContextRef.current = basicCtx;
+      setMessages([{ role: "assistant", content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " wines. Quality ratings are ready. Retail prices are loading. Ask me anything." }]);
+
       setAnalysing(false);
       // phase 1 complete - app shown
 
@@ -210,6 +218,13 @@ export default function AskTrevor() {
         return w.name + " (" + w.origin + "): Menu " + price + ", Est retail ~GBP" + (a.retail_price || "unknown") + ", Markup ~" + (a.markup_pct || "?") + "%, Quality " + (a.quality_stars || "?") + "/5. " + (a.quality_note || "");
       }).join("\n");
       wineContextRef.current = ctx;
+      // Update Trevor's opening message now that prices are available
+      setMessages(prev => {
+        if (!prev || prev.length === 0) return prev;
+        const updated = [...prev];
+        updated[0] = { ...updated[0], content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " wines with quality ratings and retail price analysis. Ask me anything." };
+        return updated;
+      });
 
       // Sweet Spot for opening message
       let ssIdx = null, ssScore = -Infinity;
