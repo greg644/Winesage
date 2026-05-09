@@ -58,7 +58,7 @@ export default function AskTrevor() {
   const [analysis, setAnalysis] = useState(null);
   const [activeTab, setActiveTab] = useState("list");
   const [filter, setFilter] = useState("All");
-  const [sortBy, setSortBy] = useState("markup");
+  const [sortBy, setSortBy] = useState("value");
   const [selectedWine, setSelectedWine] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -247,7 +247,7 @@ export default function AskTrevor() {
       const ctx = wList.map((w, i) => {
         const a = analysisData.find(x => x.index === i + 1) || {};
         const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
-        return w.name + " (" + w.origin + "): Menu " + price + ", Est retail ~GBP" + (a.retail_price || "unknown") + ", Markup ~" + (a.markup_pct || "?") + "%, Quality " + (a.quality_stars || "?") + "/5. " + (a.quality_note || "");
+        return w.name + " (" + w.origin + "): Menu " + price + ", Est retail ~GBP" + (a.retail_price || "unknown") + ", Value ~" + (a.markup_pct || "?") + "%, Quality " + (a.quality_stars || "?") + "/5. " + (a.quality_note || "");
       }).join("\n");
       wineContextRef.current = ctx;
       // Update Trevor's opening message now that prices are available
@@ -273,7 +273,7 @@ export default function AskTrevor() {
 
       setMessages([{
         role: "assistant",
-        content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " bottles, markups, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
+        content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " bottles, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
       }]);
 
       // Prompt for restaurant name and save to Google Sheets
@@ -375,7 +375,7 @@ export default function AskTrevor() {
     const date = new Date().toLocaleDateString("en-GB");
     const rows = [];
     // Add header if first row
-    rows.push(["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Markup %", "Quality Stars", "Note", "Sweet Spot", "Best Value"]);
+    rows.push(["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Value %", "Quality Stars", "Note", "Sweet Spot", "Best Value"]);
     wList.forEach((w, i) => {
       const a = analysisData.find(x => x.index === i + 1) || {};
       const price = w.price_bottle || w.price_glass;
@@ -399,7 +399,7 @@ export default function AskTrevor() {
         w.category || "",
         price || "",
         a.retail_price || "",
-        markup || "",
+        value || "",
         a.quality_stars || "",
         (a.quality_note || "").replace(/,/g, ";"),
         (i + 1) === ssIdx ? "Yes" : "",
@@ -429,7 +429,7 @@ export default function AskTrevor() {
   const filtered = mergedWines
     .filter(w => filter === "All" || w.category === filter.toLowerCase())
     .sort((a, b) => {
-      if (sortBy === "markup") return (a.markup_pct || 999) - (b.markup_pct || 999);
+      if (sortBy === "value") return (a.markup_pct || 999) - (b.markup_pct || 999);
       if (sortBy === "quality") return (b.quality_stars || 0) - (a.quality_stars || 0);
       return (a.price_bottle || 0) - (b.price_bottle || 0);
     });
@@ -492,7 +492,7 @@ export default function AskTrevor() {
             </p>
           </div>
           <p style={{ fontSize: "0.85rem", color: "#d4b87a", marginTop: 20, lineHeight: 1.8 }}>
-            Photograph any wine list. Trevor analyses quality and markup, then answers your questions.
+            Photograph any wine list. Trevor analyses quality and value, then answers your questions.
           </p>
         </div>
 
@@ -649,7 +649,7 @@ export default function AskTrevor() {
               ))}
               <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ fontSize: 10, letterSpacing: "0.2em", color: S.dim, fontFamily: "monospace" }}>SORT</span>
-                {[["markup", "Markup"], ["quality", "Quality"], ["price_bottle", "Price"]].map(([val, label]) => (
+                {[["value", "Value"], ["quality", "Quality"], ["price_bottle", "Price"]].map(([val, label]) => (
                   <button key={val} onClick={() => setSortBy(val)} style={{
                     background: sortBy === val ? "rgba(201,168,76,0.1)" : "transparent",
                     color: sortBy === val ? S.gold : S.dim,
@@ -665,7 +665,7 @@ export default function AskTrevor() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ background: S.surface }}>
-                    {["Wine", "Menu Price", "Value", "Quality", "Vintage", "Drink", "Note", ""].map(h => (
+                    {["Wine", "Menu", "Value", "Quality", "Vintage", "Drink", "Note", ""].map(h => (
                       <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
                     ))}
                   </tr>
