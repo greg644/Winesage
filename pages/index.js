@@ -165,6 +165,11 @@ export default function AskTrevor() {
       // Show app immediately with quality data
       setPhase("main");
       setAnalyseStatus(null);
+      // Prompt for restaurant name immediately after showing the app
+      setTimeout(() => {
+        const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
+        saveToSheets(wList, analysisData, restaurant);
+      }, 500);
       // Set basic Trevor context so chat works immediately
       const basicCtx = wList.map((w, i) => {
         const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
@@ -275,10 +280,6 @@ export default function AskTrevor() {
         role: "assistant",
         content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " bottles, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
       }]);
-
-      // Prompt for restaurant name and save to Google Sheets
-      const restaurant = window.prompt("What's the restaurant? (for your log)", "") || "Unknown";
-      saveToSheets(wList, analysisData, restaurant);
 
       // Start 5 minute timer for choice prompt
       if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
