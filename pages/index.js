@@ -699,7 +699,8 @@ export default function AskTrevor() {
               </div>
             )}
             {sweetSpotIdx && wines && (
-              <div style={{ marginBottom: 24, border: "1px solid " + S.gold, background: "rgba(201,168,76,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "stretch" }}>
+              <div style={{ flex: 1, border: "1px solid " + S.gold, background: "rgba(201,168,76,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
                 <div style={{ fontSize: "1.6rem" }}>🎯</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: S.gold, fontFamily: "monospace", marginBottom: 4 }}>Trevor's Sweet Spot</div>
@@ -710,16 +711,13 @@ export default function AskTrevor() {
                     {wines[sweetSpotIdx - 1]?.origin} · £{wines[sweetSpotIdx - 1]?.price_bottle || wines[sweetSpotIdx - 1]?.price_glass} · {sweetSpotNote}
                   </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <button onClick={() => { setActiveTab("chat"); setTimeout(() => sendMessage("Tell me about the sweet spot pick — " + (wines[sweetSpotIdx - 1]?.name || "")), 100); }}
-                    style={{ background: S.gold, color: S.bg, border: "none", padding: "8px 16px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                    Ask Trevor
-                  </button>
-                  <button onClick={shareAnalysis}
-                    style={{ background: "transparent", color: S.gold, border: "1px solid " + S.gold, padding: "8px 16px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                    Share
-                  </button>
-                </div>
+              </div>
+              <button onClick={shareAnalysis} style={{
+                background: "transparent", color: S.gold, border: "1px solid " + S.gold,
+                padding: "0 20px", cursor: "pointer", fontFamily: "monospace",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase",
+                whiteSpace: "nowrap"
+              }}>Share</button>
               </div>
             )}
 
