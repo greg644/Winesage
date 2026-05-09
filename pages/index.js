@@ -455,7 +455,7 @@ export default function AskTrevor() {
 
   const S = {
     bg: "#0f0d09", surface: "#151208", surface2: "#1a1610",
-    border: "#2a2318", gold: "#C9A84C", text: "#e8dfc8", dim: "#5a4f3a",
+    border: "#2a2318", gold: "#C9A84C", text: "#f0e6c8", dim: "#5a4f3a",
   };
 
   if (phase === "upload") return (
@@ -484,7 +484,7 @@ export default function AskTrevor() {
               Sommelier Intelligence
             </p>
           </div>
-          <p style={{ fontSize: "0.85rem", color: "#b09a6e", marginTop: 20, lineHeight: 1.8 }}>
+          <p style={{ fontSize: "0.85rem", color: "#d4b87a", marginTop: 20, lineHeight: 1.8 }}>
             Photograph any wine list. Trevor analyses quality and markup, then answers your questions.
           </p>
         </div>
@@ -510,7 +510,7 @@ export default function AskTrevor() {
           ) : (
             <div>
               <div style={{ fontSize: "2.4rem", marginBottom: 14, opacity: 0.4 }}>🍷</div>
-              <div style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: "1.3rem", color: "#b09a6e", marginBottom: 6 }}>Drop a wine list photo here</div>
+              <div style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: "1.3rem", color: "#d4b87a", marginBottom: 6 }}>Drop a wine list photo here</div>
               <div style={{ fontSize: "0.62rem", letterSpacing: "0.16em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace" }}>or tap to browse</div>
             </div>
           )}
@@ -680,7 +680,7 @@ export default function AskTrevor() {
                           </div>
                           <div style={{ fontSize: "0.67rem", color: S.dim }}>{w.origin}</div>
                           {selectedWine?.name === w.name && w.quality_note && (
-                            <div style={{ marginTop: 8, fontSize: "0.75rem", color: "#9a8e75", fontStyle: "italic", background: "rgba(201,168,76,0.06)", padding: "8px 12px", borderLeft: "2px solid " + S.gold }}>
+                            <div style={{ marginTop: 8, fontSize: "0.75rem", color: "#c8aa6e", fontStyle: "italic", background: "rgba(201,168,76,0.06)", padding: "8px 12px", borderLeft: "2px solid " + S.gold }}>
                               {w.quality_note}
                             </div>
                           )}
@@ -827,7 +827,7 @@ export default function AskTrevor() {
           <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
             {wines.map((w, i) => (
               <button key={i} onClick={() => handleChoice(w)} style={{
-                background: "transparent", border: "0.5px solid #2a2318", color: "#b09a6e",
+                background: "transparent", border: "0.5px solid #2a2318", color: "#d4b87a",
                 padding: "10px 12px", cursor: "pointer", textAlign: "left", borderRadius: 2,
                 fontFamily: "Georgia, serif", fontSize: 13, transition: "all 0.15s"
               }}>
