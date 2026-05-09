@@ -104,7 +104,7 @@ export default function AskTrevor() {
       });
 
       const t1raw = d1.content.find(b => b.type === "text")?.text || "";
-      const t1 = t1raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
+      const t1 = t1raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").replace(/^[^\[]*/, "").replace(/[^\]]*$/, "").trim();
       const i1s = t1.indexOf("[");
       const i1e = t1.lastIndexOf("]");
       if (i1s === -1) throw new Error("Trevor could not read this wine list. Please try again with a clearer photo — make sure the list is well lit, in focus, and the text is visible. Avoid photographing screens.");
@@ -191,7 +191,7 @@ export default function AskTrevor() {
       }
 
       const t2raw = analysisText;
-      const t2 = t2raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
+      const t2 = t2raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").replace(/^[^\[]*/, "").replace(/[^\]]*$/, "").trim();
       const i2s = t2.indexOf("[");
       const i2e = t2.lastIndexOf("]");
       if (i2s === -1) throw new Error("Analysis failed. Please try again.");
