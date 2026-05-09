@@ -460,6 +460,114 @@ export default function AskTrevor() {
     });
   }
 
+  async function shareAnalysis() {
+    if (!wines || !analysis) return;
+    try {
+      const scale = 2;
+      const width = 800;
+      const rowHeight = 44;
+      const headerHeight = 100;
+      const footerHeight = 50;
+      const height = headerHeight + (wines.length + 1) * rowHeight + footerHeight;
+      const canvas = document.createElement("canvas");
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      ctx.fillStyle = "#0f0d09";
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = "#c9a84c";
+      ctx.fillRect(0, 0, width, 3);
+
+      ctx.font = "italic 28px Georgia, serif";
+      ctx.fillStyle = "#c9a84c";
+      ctx.fillText("Ask Trevor", 24, 40);
+      ctx.font = "11px monospace";
+      ctx.fillStyle = "#9a8a6a";
+      ctx.fillText("QUALITY & VALUE ANALYSIS", 24, 60);
+      ctx.fillText(new Date().toLocaleDateString("en-GB"), width - 110, 60);
+
+      const cols = ["Wine", "Menu", "Value", "Quality", "Vintage", "Drink"];
+      const colX = [24, 300, 374, 454, 554, 644];
+      ctx.font = "bold 10px monospace";
+      ctx.fillStyle = "#9a8a6a";
+      cols.forEach((c, i) => ctx.fillText(c.toUpperCase(), colX[i], headerHeight - 8));
+
+      ctx.fillStyle = "#2a2318";
+      ctx.fillRect(0, headerHeight, width, 1);
+
+      wines.forEach((w, i) => {
+        const a = (analysis || []).find(x => x.index === i + 1) || {};
+        const y = headerHeight + (i + 1) * rowHeight - 8;
+        const isSweet = (i + 1) === sweetSpotIdx;
+        const isBest = (i + 1) === bestIdx;
+
+        if (isSweet || isBest) {
+          ctx.fillStyle = "rgba(201,168,76,0.06)";
+          ctx.fillRect(0, y - 26, width, rowHeight);
+        }
+
+        ctx.font = "13px Georgia, serif";
+        ctx.fillStyle = isSweet || isBest ? "#c9a84c" : "#f0e6c8";
+        ctx.fillText((w.name || "").substring(0, 34), colX[0], y);
+
+        const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass : "-";
+        ctx.font = "12px monospace";
+        ctx.fillStyle = "#c8b48a";
+        ctx.fillText(menuPrice, colX[1], y);
+
+        const pct = a.markup_pct;
+        const vLabel = pct == null ? "-" : pct > 250 ? "High" : pct > 150 ? "Typical" : "Good";
+        ctx.font = "bold 11px monospace";
+        ctx.fillStyle = pct == null ? "#9a8a6a" : pct > 250 ? "#E05C5C" : pct > 150 ? "#C9A84C" : "#6BAE75";
+        ctx.fillText(vLabel, colX[2], y);
+
+        ctx.font = "12px Arial";
+        ctx.fillStyle = "#c9a84c";
+        ctx.fillText("★".repeat(a.quality_stars || 0) + "☆".repeat(5 - (a.quality_stars || 0)), colX[3], y);
+
+        ctx.font = "11px monospace";
+        ctx.fillStyle = "#c8b48a";
+        if (a.vintage_note) {
+          const vn = a.vintage_note.toLowerCase();
+          const vnt = vn.includes("legendary") ? "Legendary" : vn.includes("outstanding") ? "Outstanding" : vn.includes("exceptional") ? "Exceptional" : vn.includes("superb") || vn.includes("excellent") ? "Superb" : vn.includes("good") ? "Good" : vn.includes("poor") ? "Poor" : "n/a";
+          ctx.fillText(vnt, colX[4], y);
+        } else { ctx.fillText("-", colX[4], y); }
+
+        if (a.drinking_window) {
+          const dw = a.drinking_window.toLowerCase();
+          const cy = new Date().getFullYear();
+          const yrs = dw.match(/20[2-9][0-9]/g);
+          let dl = dw.includes("now") ? "Drink now" : dw.includes("past") ? "Past best" : dw.includes("young") || dw.includes("needs") ? "Too young" : a.drinking_window;
+          if (yrs) { const mn = Math.min(...yrs.map(Number)), mx = Math.max(...yrs.map(Number)); dl = mx < cy ? "Past best" : mn <= cy ? "Drink now" : "Too young"; }
+          ctx.fillText(dl.substring(0, 9), colX[5], y);
+        } else { ctx.fillText("-", colX[5], y); }
+
+        ctx.fillStyle = "#1a1610";
+        ctx.fillRect(0, y + 8, width, 1);
+      });
+
+      ctx.font = "10px monospace";
+      ctx.fillStyle = "#5a4f3a";
+      ctx.fillText("asktrevor.app", 24, height - 16);
+      ctx.fillStyle = "#c9a84c";
+      ctx.fillRect(0, height - 3, width, 3);
+
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], "asktrevor.png", { type: "image/png" });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: "Ask Trevor", text: "Wine list analysis", files: [file] });
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = "asktrevor.png"; a.click();
+          URL.revokeObjectURL(url);
+        }
+      }, "image/png");
+    } catch(e) { console.error("Share failed:", e.message); }
+  }
+
   const S = {
     bg: "#0f0d09", surface: "#151208", surface2: "#1a1610",
     border: "#2a2318", gold: "#C9A84C", text: "#f0e6c8", dim: "#c8b48a",
@@ -755,6 +863,19 @@ export default function AskTrevor() {
                 </tbody>
               </table>
             </div>
+          </div>
+        {wines && analysis && (
+          <div style={{ display: "flex", gap: 12, padding: "16px 24px", flexWrap: "wrap" }}>
+            <button onClick={shareAnalysis} style={{
+              background: S.gold, color: S.bg, border: "none",
+              fontFamily: "monospace", fontSize: "0.62rem", letterSpacing: "0.18em",
+              textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", borderRadius: 2
+            }}>Share Analysis</button>
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
+              background: "transparent", color: S.dim, border: "1px solid " + S.border,
+              fontFamily: "monospace", fontSize: "0.62rem", letterSpacing: "0.18em",
+              textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", borderRadius: 2
+            }}>New List</button>
           </div>
         )}
 
