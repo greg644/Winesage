@@ -710,10 +710,16 @@ export default function AskTrevor() {
                     {wines[sweetSpotIdx - 1]?.origin} · £{wines[sweetSpotIdx - 1]?.price_bottle || wines[sweetSpotIdx - 1]?.price_glass} · {sweetSpotNote}
                   </div>
                 </div>
-                <button onClick={() => { setActiveTab("chat"); setTimeout(() => sendMessage("Tell me about the sweet spot pick — " + (wines[sweetSpotIdx - 1]?.name || "")), 100); }}
-                  style={{ background: S.gold, color: S.bg, border: "none", padding: "8px 16px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                  Ask Trevor
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <button onClick={() => { setActiveTab("chat"); setTimeout(() => sendMessage("Tell me about the sweet spot pick — " + (wines[sweetSpotIdx - 1]?.name || "")), 100); }}
+                    style={{ background: S.gold, color: S.bg, border: "none", padding: "8px 16px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                    Ask Trevor
+                  </button>
+                  <button onClick={shareAnalysis}
+                    style={{ background: "transparent", color: S.gold, border: "1px solid " + S.gold, padding: "8px 16px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                    Share
+                  </button>
+                </div>
               </div>
             )}
 
@@ -863,20 +869,7 @@ export default function AskTrevor() {
                 </tbody>
               </table>
             </div>
-            {wines && analysis && (
-              <div style={{ display: "flex", gap: 12, padding: "16px 24px", flexWrap: "wrap" }}>
-                <button onClick={shareAnalysis} style={{
-                  background: S.gold, color: S.bg, border: "none",
-                  fontFamily: "monospace", fontSize: "0.62rem", letterSpacing: "0.18em",
-                  textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", borderRadius: 2
-                }}>Share Analysis</button>
-                <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
-                  background: "transparent", color: S.dim, border: "1px solid " + S.border,
-                  fontFamily: "monospace", fontSize: "0.62rem", letterSpacing: "0.18em",
-                  textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", borderRadius: 2
-                }}>New List</button>
-              </div>
-            )}
+
           </div>
         )}
 
