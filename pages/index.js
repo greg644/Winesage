@@ -187,7 +187,8 @@ export default function AskTrevor() {
         return (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ") menu price: " + price;
       }).join("\n");
 
-      // Analysis with web search loop
+      // PHASE 2: Analysis with web search loop
+      try {
       const analysisPrompt = hasPrices
         ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and note if it is exceptional, good, average or poor, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
         : "For each wine below, rate the quality 1-5 and estimate the typical UK retail price. There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
@@ -236,6 +237,12 @@ export default function AskTrevor() {
         });
       });
       setSearchingPrices(false);
+      } catch(phase2Err) {
+        console.error('Phase 2 error:', phase2Err.message);
+        setSearchingPrices(false);
+        setAnalyseStatus('Could not load retail prices: ' + phase2Err.message);
+        setTimeout(() => setAnalyseStatus(null), 4000);
+      }
 
       const ctx = wList.map((w, i) => {
         const a = analysisData.find(x => x.index === i + 1) || {};
@@ -658,7 +665,7 @@ export default function AskTrevor() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ background: S.surface }}>
-                    {["Wine", "Menu", "Est. Retail", "Markup", "Quality", "Vintage", "Drink", "Note", ""].map(h => (
+                    {["Wine", "Menu", "Retail", "Markup", "Quality", "Vintage", "Drink", "Note", ""].map(h => (
                       <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
                     ))}
                   </tr>
