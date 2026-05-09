@@ -164,7 +164,7 @@ export default function AskTrevor() {
 
       // Analysis with web search loop
       const analysisPrompt = hasPrices
-        ? "For each wine below, search for the average UK retail bottle price across mainstream retailers (Waitrose, Majestic, Berry Bros, Naked Wines) and rate quality 1-5. Return a raw JSON array only. No markdown, no backticks, no code blocks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:120}]\n\nWines:\n" + wineList
+        ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120}]\n\nWines:\n" + wineList
         : "For each wine below, rate the quality 1-5 and estimate the typical UK retail price. There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
       let analysisText = "";
       let searchMessages = [{ role: "user", content: analysisPrompt }];
@@ -542,7 +542,7 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
