@@ -165,6 +165,9 @@ export default function AskTrevor() {
       // Show app immediately with quality data
       setPhase("main");
       setAnalyseStatus(null);
+      // Start 5 minute timer for choice prompt
+      if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
+      choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
       // Prompt for restaurant name immediately after showing the app
       setTimeout(() => {
         const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
@@ -281,9 +284,7 @@ export default function AskTrevor() {
         content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " bottles, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
       }]);
 
-      // Start 5 minute timer for choice prompt
-      if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
-      choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
+
 
     } catch (err) {
       setAnalyseStatus("Error: " + (err.message || "Something went wrong."));
