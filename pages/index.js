@@ -141,7 +141,7 @@ export default function AskTrevor() {
       setPhase("main");
       setAnalyseStatus(null);
       setAnalysing(false);
-      setBusy && setBusy(false);
+      // phase 1 complete - app shown
 
       // PHASE 2: Search retail prices in background
       if (hasPrices) {
@@ -149,13 +149,8 @@ export default function AskTrevor() {
       }
 
       const wineList = wList.map((w, i) => {
-        let bottlePrice = w.price_bottle;
-        if (!bottlePrice && w.price_glass) {
-          if (w.glass_size === 125) bottlePrice = Math.round(w.price_glass * 6);
-          else if (w.glass_size === 250) bottlePrice = Math.round(w.price_glass * 3);
-          else bottlePrice = Math.round(w.price_glass * 4.3);
-        }
-        const price = bottlePrice ? "GBP" + bottlePrice + (w.price_bottle ? "" : " (est from glass)") : "unknown";
+        const bottlePrice = w.price_bottle || (w.price_glass ? (w.glass_size === 125 ? Math.round(w.price_glass * 6) : w.glass_size === 250 ? Math.round(w.price_glass * 3) : Math.round(w.price_glass * 4.3)) : null);
+        const price = w.price_bottle ? "GBP" + w.price_bottle : bottlePrice ? "GBP" + bottlePrice + " (est from glass)" : "unknown";
         return (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ") menu price: " + price;
       }).join("\n");
 
