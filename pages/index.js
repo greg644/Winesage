@@ -711,7 +711,6 @@ export default function AskTrevor() {
                   </div>
                 </div>
               </div>
-              </div>
             )}
 
             {/* Food Pairing */}
