@@ -84,10 +84,25 @@ export default function AskTrevor() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      const dataUrl = ev.target.result;
-      setImg64(dataUrl.split(",")[1]);
-      setImgType(dataUrl.split(";")[0].split(":")[1] || "image/jpeg");
-      setPreview(dataUrl);
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        // Scale down if too large - max 1600px on longest side
+        const MAX = 1600;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.80);
+        setImg64(dataUrl.split(",")[1]);
+        setImgType("image/jpeg");
+        setPreview(dataUrl);
+      };
+      img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
   }
