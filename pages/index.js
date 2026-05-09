@@ -7,9 +7,15 @@ async function callClaude(body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch(e) {
+    throw new Error("Server error " + res.status + ": " + text.substring(0, 150));
+  }
   if (data.error) throw new Error("API error: " + JSON.stringify(data.error));
-  if (!data.content) throw new Error("No content. Response: " + JSON.stringify(data).substring(0, 200));
+  if (!data.content) throw new Error("No content: " + JSON.stringify(data).substring(0, 200));
   return data;
 }
 
@@ -126,7 +132,7 @@ export default function AskTrevor() {
       const dQuick = await callClaude({
         model: "claude-sonnet-4-5-20250929",
         max_tokens: 3000,
-        messages: [{ role: "user", content: "For each wine below, rate the quality 1-5 and give a short note. Do NOT search for prices yet. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:null,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + quickList }]
+        messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{index:1,quality_stars:4,quality_note:short phrase,retail_price:null,markup_pct:null}]. Wines: " + quickList + quickList }]
       });
       const tQuick = (dQuick.content.find(b => b.type === "text")?.text || "").replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
       const iQs = tQuick.indexOf("["); const iQe = tQuick.lastIndexOf("]");
@@ -134,7 +140,11 @@ export default function AskTrevor() {
         try {
           let quickData = JSON.parse(tQuick.substring(iQs, iQe + 1));
           setAnalysis(quickData);
-        } catch(e) {}
+        } catch(e) {
+          console.error("Phase 1 parse error:", e.message, "Raw:", tQuick.substring(0, 200));
+        }
+      } else {
+        console.error("Phase 1 no JSON found. Raw response:", tQuick.substring(0, 300));
       }
 
       // Show app immediately with quality data
