@@ -492,7 +492,7 @@ export default function AskTrevor() {
             </p>
           </div>
           <p style={{ fontSize: "0.85rem", color: "#d4b87a", marginTop: 20, lineHeight: 1.8 }}>
-            Photograph any wine list. Trevor analyses quality and value, then answers your questions.
+            Photograph any wine list.<br/>Trevor analyses quality and value,<br/>then answers your questions.
           </p>
         </div>
 
