@@ -863,19 +863,20 @@ export default function AskTrevor() {
                 </tbody>
               </table>
             </div>
-          </div>
-        {wines && analysis && (
-          <div style={{ display: "flex", gap: 12, padding: "16px 24px", flexWrap: "wrap" }}>
-            <button onClick={shareAnalysis} style={{
-              background: S.gold, color: S.bg, border: "none",
-              fontFamily: "monospace", fontSize: "0.62rem", letterSpacing: "0.18em",
-              textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", borderRadius: 2
-            }}>Share Analysis</button>
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
-              background: "transparent", color: S.dim, border: "1px solid " + S.border,
-              fontFamily: "monospace", fontSize: "0.62rem", letterSpacing: "0.18em",
-              textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", borderRadius: 2
-            }}>New List</button>
+            {wines && analysis && (
+              <div style={{ display: "flex", gap: 12, padding: "16px 24px", flexWrap: "wrap" }}>
+                <button onClick={shareAnalysis} style={{
+                  background: S.gold, color: S.bg, border: "none",
+                  fontFamily: "monospace", fontSize: "0.62rem", letterSpacing: "0.18em",
+                  textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", borderRadius: 2
+                }}>Share Analysis</button>
+                <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
+                  background: "transparent", color: S.dim, border: "1px solid " + S.border,
+                  fontFamily: "monospace", fontSize: "0.62rem", letterSpacing: "0.18em",
+                  textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", borderRadius: 2
+                }}>New List</button>
+              </div>
+            )}
           </div>
         )}
 
