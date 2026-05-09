@@ -269,7 +269,7 @@ export default function AskTrevor() {
         const a = analysisData.find(x => x.index === i + 1) || {};
         const price = w.price_bottle || w.price_glass;
         const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
-        if (!price || price > 100 || !a.quality_stars || !markup || markup <= 0) return;
+        if (!price || !a.quality_stars || !markup || markup <= 0) return;
         const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
         if (score > ssScore) { ssScore = score; ssIdx = i; }
       });
@@ -441,6 +441,12 @@ export default function AskTrevor() {
     analysis.forEach(a => { if (a.markup_pct != null && a.markup_pct < lo) { lo = a.markup_pct; bestIdx = a.index; } });
   }
 
+  let bestQualityIdx = null;
+  if (analysis) {
+    let hi = 0;
+    analysis.forEach(a => { if (a.quality_stars != null && a.quality_stars > hi) { hi = a.quality_stars; bestQualityIdx = a.index; } });
+  }
+
   let sweetSpotIdx = null;
   let sweetSpotScore = -Infinity;
   let sweetSpotNote = "";
@@ -449,7 +455,7 @@ export default function AskTrevor() {
       const a = analysis.find(x => x.index === i + 1) || {};
       const price = w.price_bottle || w.price_glass;
       const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
-      if (!price || price > 100) return;
+      if (!price) return;
       if (!a.quality_stars || a.quality_stars < 1) return;
       if (!markup || markup <= 0) return;
       const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
@@ -503,6 +509,7 @@ export default function AskTrevor() {
         const y = headerHeight + (i + 1) * rowHeight - 8;
         const isSweet = (i + 1) === sweetSpotIdx;
         const isBest = (i + 1) === bestIdx;
+        const isBQ = (i + 1) === bestQualityIdx;
 
         if (isSweet || isBest) {
           ctx.fillStyle = "rgba(201,168,76,0.06)";
@@ -795,16 +802,18 @@ export default function AskTrevor() {
                   {filtered.map((w, i) => {
                     const isBest = w.index === bestIdx;
                     const isSweet = w.index === sweetSpotIdx;
+                    const isBestQuality = w.index === bestQualityIdx;
                     const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass + "/gl" : "-";
                     const retail = w.retail_price ? "~£" + w.retail_price : "-";
                     return (
                       <tr key={i} onClick={() => setSelectedWine(selectedWine?.name === w.name ? null : w)}
-                        style={{ background: isSweet ? "rgba(107,174,117,0.04)" : isBest ? "rgba(201,168,76,0.05)" : "transparent", borderBottom: "1px solid " + S.surface2, cursor: "pointer" }}>
+                        style={{ background: isSweet ? "rgba(107,174,117,0.04)" : isBestQuality ? "rgba(100,149,237,0.05)" : isBest ? "rgba(201,168,76,0.05)" : "transparent", borderBottom: "1px solid " + S.surface2, cursor: "pointer" }}>
                         <td style={{ padding: "12px 12px", minWidth: 180 }}>
                           <div style={{ fontFamily: "Georgia, serif", fontSize: "0.95rem", color: isSweet ? "#6BAE75" : isBest ? S.gold : S.text, fontWeight: 600 }}>
                             {w.name}
                             {isBest && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(201,168,76,0.15)", color: S.gold, border: "1px solid rgba(201,168,76,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Best Value</span>}
                             {isSweet && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(107,174,117,0.15)", color: "#6BAE75", border: "1px solid rgba(107,174,117,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Sweet Spot</span>}
+                            {isBestQuality && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(100,149,237,0.15)", color: "#6495ED", border: "1px solid rgba(100,149,237,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Best Quality</span>}
                           </div>
                           <div style={{ fontSize: "0.67rem", color: S.dim }}>{w.origin}</div>
                           {selectedWine?.name === w.name && w.quality_note && (
