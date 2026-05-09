@@ -228,6 +228,16 @@ export default function AskTrevor() {
         const cleaned = t2.substring(i2s, i2e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
         analysisData = JSON.parse(cleaned);
       }
+      // Debug - show first result
+      if (analysisData && analysisData.length > 0) {
+        const first = analysisData[0];
+        setAnalyseStatus("Phase 2 got: index=" + first.index + " retail=" + first.retail_price + " markup=" + first.markup_pct);
+        setTimeout(() => setAnalyseStatus(null), 5000);
+      } else {
+        setAnalyseStatus("Phase 2: no data returned");
+        setTimeout(() => setAnalyseStatus(null), 5000);
+      }
+
       // Merge retail prices, vintage notes and drinking window into existing quality data
       setAnalysis(prev => {
         if (!prev) return analysisData;
