@@ -107,7 +107,7 @@ export default function AskTrevor() {
       const t1 = t1raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
       const i1s = t1.indexOf("[");
       const i1e = t1.lastIndexOf("]");
-      if (i1s === -1) throw new Error("Could not read wines from image. Try a clearer photo.");
+      if (i1s === -1) throw new Error("Trevor could not read this wine list. Please try again with a clearer photo — make sure the list is well lit, in focus, and the text is visible. Avoid photographing screens.");
       let wList;
       try {
         wList = JSON.parse(t1.substring(i1s, i1e + 1));
@@ -116,7 +116,7 @@ export default function AskTrevor() {
         const cleaned = t1.substring(i1s, i1e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
         wList = JSON.parse(cleaned);
       }
-      if (!wList.length) throw new Error("No wines found in image.");
+      if (!wList.length) throw new Error("No wines found in this image. Please make sure you are photographing a wine list — ideally in portrait orientation with good lighting and the full list visible.");
       setWines(wList);
       const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
 
