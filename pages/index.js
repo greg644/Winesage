@@ -190,7 +190,7 @@ export default function AskTrevor() {
       // PHASE 2: Analysis with web search loop
       try {
       const analysisPrompt = hasPrices
-        ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and note if it is exceptional, good, average or poor, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
+        ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
         : "For each wine below, rate the quality 1-5 and estimate the typical UK retail price. There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
       let analysisText = "";
       let searchMessages = [{ role: "user", content: analysisPrompt }];
@@ -695,7 +695,18 @@ export default function AskTrevor() {
                         <td style={{ padding: "12px 12px", color: S.text, whiteSpace: "nowrap", fontFamily: "monospace" }}>{menuPrice}</td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} searching={searchingPrices} /></td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>{w.quality_stars ? <Stars count={w.quality_stars} /> : "-"}</td>
-                        <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: w.vintage_note && w.vintage_note.toLowerCase().includes("exceptional") ? "#6BAE75" : w.vintage_note && w.vintage_note.toLowerCase().includes("poor") ? "#E05C5C" : S.dim, whiteSpace: "nowrap" }}>{w.vintage_note || (searchingPrices ? "..." : "-")}</td>
+                        <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: S.dim, whiteSpace: "nowrap" }}>{w.vintage_note ? (() => {
+                            const vn = w.vintage_note.toLowerCase();
+                            if (vn.includes("recent") || vn.includes("n/a") || vn.includes("too young") || vn.includes("assess")) return "n/a";
+                            if (vn.includes("legendary") || vn.includes("historic") || vn.includes("greatest")) return "Legendary";
+                            if (vn.includes("outstanding")) return "Outstanding";
+                            if (vn.includes("exceptional")) return "Exceptional";
+                            if (vn.includes("superb") || vn.includes("excellent")) return "Superb";
+                            if (vn.includes("good") || vn.includes("solid") || vn.includes("reliable")) return "Good";
+                            if (vn.includes("average") || vn.includes("ordinary") || vn.includes("mixed")) return "Average";
+                            if (vn.includes("poor") || vn.includes("difficult") || vn.includes("challenging") || vn.includes("weak")) return "Poor";
+                            return w.vintage_note;
+                          })() : (searchingPrices ? "..." : "-")}</td>
                         <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: (() => {
                             if (!w.drinking_window) return S.dim;
                             const dw = w.drinking_window.toLowerCase();
