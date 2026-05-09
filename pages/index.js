@@ -464,7 +464,7 @@ export default function AskTrevor() {
     if (!wines || !analysis) return;
     try {
       const scale = 2;
-      const width = 800;
+      const width = 1200;
       const rowHeight = 44;
       const headerHeight = 100;
       const footerHeight = 50;
@@ -489,7 +489,7 @@ export default function AskTrevor() {
       ctx.fillText(new Date().toLocaleDateString("en-GB"), width - 110, 60);
 
       const cols = ["Wine", "Menu", "Value", "Quality", "Vintage", "Drink"];
-      const colX = [24, 300, 374, 454, 554, 644];
+      const colX = [24, 480, 580, 680, 820, 1000];
       ctx.font = "bold 10px monospace";
       ctx.fillStyle = "#9a8a6a";
       cols.forEach((c, i) => ctx.fillText(c.toUpperCase(), colX[i], headerHeight - 8));
@@ -510,7 +510,7 @@ export default function AskTrevor() {
 
         ctx.font = "13px Georgia, serif";
         ctx.fillStyle = isSweet || isBest ? "#c9a84c" : "#f0e6c8";
-        ctx.fillText((w.name || "").substring(0, 34), colX[0], y);
+        ctx.fillText((w.name || "").substring(0, 50), colX[0], y);
 
         const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass : "-";
         ctx.font = "12px monospace";
@@ -551,6 +551,7 @@ export default function AskTrevor() {
       ctx.font = "10px monospace";
       ctx.fillStyle = "#5a4f3a";
       ctx.fillText("asktrevor.app", 24, height - 16);
+      ctx.fillText(new Date().toLocaleDateString("en-GB"), width - 120, height - 16);
       ctx.fillStyle = "#c9a84c";
       ctx.fillRect(0, height - 3, width, 3);
 
@@ -713,14 +714,10 @@ export default function AskTrevor() {
               </div>
             )}
 
-            {/* Food Pairing */}
-            <div style={{ marginBottom: 24, border: "1px solid " + S.border, background: S.surface, padding: "16px 20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace" }}>Trevor's Food Pairing</div>
-                <button onClick={shareAnalysis} style={{ background: "#25D366", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "white", fontFamily: "monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em" }}>
-                  <span style={{ fontSize: 14 }}>💬</span> SHARE
-                </button>
-              </div>
+            {/* Food Pairing + Share */}
+            <div style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "stretch" }}>
+            <div style={{ flex: 1, border: "1px solid " + S.border, background: S.surface, padding: "16px 20px" }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace", marginBottom: 12 }}>Trevor's Food Pairing</div>
               <div style={{ display: "flex", gap: 10 }}>
                 <input
                   value={foodInput}
@@ -743,6 +740,20 @@ export default function AskTrevor() {
                   )}
                 </div>
               )}
+            </div>
+            {wines && analysis && (
+              <button onClick={shareAnalysis} style={{
+                background: "#25D366", border: "none", borderRadius: 4,
+                padding: "0 20px", cursor: "pointer", display: "flex",
+                flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 6, color: "white", fontFamily: "monospace",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.1em",
+                minWidth: 90
+              }}>
+                <span style={{ fontSize: 20 }}>💬</span>
+                <span>SHARE</span>
+              </button>
+            )}
             </div>
 
             <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
