@@ -33,8 +33,9 @@ function Stars({ count, max = 5 }) {
   );
 }
 
-function MarkupBadge({ pct }) {
-  if (pct == null) return <span style={{ color: "#5a4f3a", fontSize: 16 }}>●</span>;
+function MarkupBadge({ pct, searching }) {
+  if (searching && pct == null) return <span style={{ color: "#3a3020", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.05em" }}>searching...</span>;
+  if (pct == null) return <span style={{ color: "#3a3020", fontSize: 12 }}>—</span>;
   const color = pct > 250 ? "#E05C5C" : pct > 150 ? "#C9A84C" : "#6BAE75";
   const label = pct > 250 ? "High" : pct > 150 ? "Typical" : "Good Value";
   return <span style={{ color, fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>{label}</span>;
@@ -59,6 +60,7 @@ export default function AskTrevor() {
   const [dragOver, setDragOver] = useState(false);
   const [showChoicePrompt, setShowChoicePrompt] = useState(false);
   const [chosenWine, setChosenWine] = useState(null);
+  const [searchingPrices, setSearchingPrices] = useState(false);
   const [choiceComment, setChoiceComment] = useState(null);
   const choiceTimerRef = useRef(null);
   const [foodInput, setFoodInput] = useState("");
@@ -117,19 +119,41 @@ export default function AskTrevor() {
       if (!wList.length) throw new Error("No wines found in image.");
       setWines(wList);
       const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
-      if (!hasPrices) {
-        setAnalyseStatus("Found " + wList.length + " wines - analysing quality (no prices on this list)...");
-      } else {
-        setAnalyseStatus("Found " + wList.length + " wines - researching prices...");
+
+      // PHASE 1: Get quality ratings instantly (no web search)
+      setAnalyseStatus("Found " + wList.length + " wines - rating quality...");
+      const quickList = wList.map((w, i) => (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ")").join("\n");
+      const dQuick = await callClaude({
+        model: "claude-sonnet-4-5-20250929",
+        max_tokens: 3000,
+        messages: [{ role: "user", content: "For each wine below, rate the quality 1-5 and give a short note. Do NOT search for prices yet. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:null,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + quickList }]
+      });
+      const tQuick = (dQuick.content.find(b => b.type === "text")?.text || "").replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
+      const iQs = tQuick.indexOf("["); const iQe = tQuick.lastIndexOf("]");
+      if (iQs !== -1) {
+        try {
+          let quickData = JSON.parse(tQuick.substring(iQs, iQe + 1));
+          setAnalysis(quickData);
+        } catch(e) {}
+      }
+
+      // Show app immediately with quality data
+      setPhase("main");
+      setAnalyseStatus(null);
+      setAnalysing(false);
+      setBusy && setBusy(false);
+
+      // PHASE 2: Search retail prices in background
+      if (hasPrices) {
+        setSearchingPrices(true);
       }
 
       const wineList = wList.map((w, i) => {
         let bottlePrice = w.price_bottle;
         if (!bottlePrice && w.price_glass) {
-          // Estimate bottle price from glass price
           if (w.glass_size === 125) bottlePrice = Math.round(w.price_glass * 6);
           else if (w.glass_size === 250) bottlePrice = Math.round(w.price_glass * 3);
-          else bottlePrice = Math.round(w.price_glass * 4.3); // assume 175ml
+          else bottlePrice = Math.round(w.price_glass * 4.3);
         }
         const price = bottlePrice ? "GBP" + bottlePrice + (w.price_bottle ? "" : " (est from glass)") : "unknown";
         return (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ") menu price: " + price;
@@ -175,7 +199,15 @@ export default function AskTrevor() {
         const cleaned = t2.substring(i2s, i2e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
         analysisData = JSON.parse(cleaned);
       }
-      setAnalysis(analysisData);
+      // Merge retail prices into existing quality data
+      setAnalysis(prev => {
+        if (!prev) return analysisData;
+        return prev.map((q, i) => {
+          const a = analysisData.find(x => x.index === q.index) || {};
+          return { ...q, retail_price: a.retail_price, markup_pct: a.markup_pct };
+        });
+      });
+      setSearchingPrices(false);
 
       const ctx = wList.map((w, i) => {
         const a = analysisData.find(x => x.index === i + 1) || {};
@@ -210,10 +242,9 @@ export default function AskTrevor() {
       if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
       choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
 
-      setPhase("main");
-      setAnalyseStatus(null);
     } catch (err) {
       setAnalyseStatus("Error: " + (err.message || "Something went wrong."));
+      setSearchingPrices(false);
     } finally {
       setAnalysing(false);
     }
@@ -511,6 +542,12 @@ export default function AskTrevor() {
         {activeTab === "list" && (
           <div style={{ padding: "20px 24px" }}>
 
+            {searchingPrices && (
+              <div style={{ marginBottom: 12, padding: "8px 14px", background: "#1a1408", border: "0.5px solid #2a2010", fontSize: 11, fontFamily: "monospace", color: "#5a4f3a", letterSpacing: "0.1em", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#c9a84c", opacity: 0.6, animation: "trevorPulse 1.2s ease infinite" }} />
+                SEARCHING RETAIL PRICES...
+              </div>
+            )}
             {sweetSpotIdx && wines && (
               <div style={{ marginBottom: 24, border: "1px solid " + S.gold, background: "rgba(201,168,76,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
                 <div style={{ fontSize: "1.6rem" }}>🎯</div>
@@ -615,7 +652,7 @@ export default function AskTrevor() {
                         </td>
                         <td style={{ padding: "12px 12px", color: S.text, whiteSpace: "nowrap", fontFamily: "monospace" }}>{menuPrice}</td>
                         <td style={{ padding: "12px 12px", color: "#7a6d55", whiteSpace: "nowrap", fontFamily: "monospace" }}>{retail}</td>
-                        <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} /></td>
+                        <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} searching={searchingPrices} /></td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>{w.quality_stars ? <Stars count={w.quality_stars} /> : "-"}</td>
                         <td style={{ padding: "12px 12px", fontSize: "0.7rem", color: S.dim, minWidth: 140 }}>{w.quality_note || ""}</td>
                         <td style={{ padding: "12px 12px" }}>
