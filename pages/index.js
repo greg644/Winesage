@@ -690,7 +690,41 @@ export default function AskTrevor() {
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} searching={searchingPrices} /></td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>{w.quality_stars ? <Stars count={w.quality_stars} /> : "-"}</td>
                         <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: w.vintage_note && w.vintage_note.toLowerCase().includes("exceptional") ? "#6BAE75" : w.vintage_note && w.vintage_note.toLowerCase().includes("poor") ? "#E05C5C" : S.dim, whiteSpace: "nowrap" }}>{w.vintage_note || (searchingPrices ? "..." : "-")}</td>
-                        <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: w.drinking_window && w.drinking_window.toLowerCase().includes("now") ? "#6BAE75" : w.drinking_window && w.drinking_window.toLowerCase().includes("past") ? "#E05C5C" : S.dim, whiteSpace: "nowrap" }}>{w.drinking_window || (searchingPrices ? "..." : "-")}</td>
+                        <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: (() => {
+                            if (!w.drinking_window) return S.dim;
+                            const dw = w.drinking_window.toLowerCase();
+                            const currentYear = new Date().getFullYear();
+                            const years = dw.match(/20[2-9][0-9]/g);
+                            if (years) {
+                              const minYear = Math.min(...years.map(Number));
+                              const maxYear = Math.max(...years.map(Number));
+                              if (maxYear < currentYear) return "#E05C5C";
+                              if (minYear <= currentYear) return "#6BAE75";
+                              return "#C9A84C";
+                            }
+                            if (dw.includes("past")) return "#E05C5C";
+                            if (dw.includes("now")) return "#6BAE75";
+                            if (dw.includes("young") || dw.includes("needs")) return "#C9A84C";
+                            return S.dim;
+                          })(), whiteSpace: "nowrap" }}>
+                          {w.drinking_window ? (() => {
+                            const dw = w.drinking_window.toLowerCase();
+                            const currentYear = new Date().getFullYear();
+                            if (dw.includes("past")) return "Past best";
+                            // Check if any year in the window includes current year or earlier
+                            const years = dw.match(/20[2-9][0-9]/g);
+                            if (years) {
+                              const minYear = Math.min(...years.map(Number));
+                              const maxYear = Math.max(...years.map(Number));
+                              if (maxYear < currentYear) return "Past best";
+                              if (minYear <= currentYear && maxYear >= currentYear) return "Drink now";
+                              if (minYear > currentYear) return "Too young";
+                            }
+                            if (dw.includes("young") || dw.includes("needs")) return "Too young";
+                            if (dw.includes("now")) return "Drink now";
+                            return w.drinking_window;
+                          })() : (searchingPrices ? "..." : "-")}
+                        </td>
                         <td style={{ padding: "12px 12px", fontSize: "0.7rem", color: S.dim, minWidth: 140 }}>{w.quality_note || ""}</td>
                         <td style={{ padding: "12px 12px" }}>
                           <button onClick={e => { e.stopPropagation(); setActiveTab("chat"); setTimeout(() => sendMessage("Tell me about " + w.name), 100); }}
