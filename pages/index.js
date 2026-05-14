@@ -856,7 +856,7 @@ export default function AskTrevor() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ background: S.surface }}>
-                    {[["Wine", false], ["Menu", false], ["Value", false], ["★", false], ["Vintage", true], ["Drink", true], ["Note", true], ["", true]].map(([h, landscape]) => (
+                    {[["Wine", false], ["Menu", false], ["£££", false], ["★", false], ["Vintage", true], ["Drink", true], ["Note", true], ["", true]].map(([h, landscape]) => (
                       <th key={h} className={landscape ? "col-landscape" : ""} style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
                     ))}
                   </tr>
