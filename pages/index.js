@@ -1,8 +1,7 @@
-
 import { useState, useRef, useEffect } from "react";
 import Head from "next/head";
 
-const APP_VERSION = "1.1.0";
+
 
 async function callClaude(body) {
   const res = await fetch("/api/claude", {
@@ -87,12 +86,16 @@ export default function AskTrevor() {
 
   // Version check + service worker update detection
   useEffect(() => {
-    // Check version.json for update banner
+    // Check version.json for update banner using localStorage
     fetch("/version.json?t=" + Date.now())
       .then(r => r.json())
       .then(data => {
-        if (data.version && data.version !== APP_VERSION) {
-          setUpdateAvailable(true);
+        if (data.version) {
+          const stored = localStorage.getItem("trevor_version");
+          if (stored && stored !== data.version) {
+            setUpdateAvailable(true);
+          }
+          localStorage.setItem("trevor_version", data.version);
         }
       })
       .catch(() => {});
@@ -129,6 +132,7 @@ export default function AskTrevor() {
 
   function doUpdate() {
     setUpdateAvailable(false);
+    localStorage.removeItem("trevor_version");
     if (swWaitingRef.current) {
       swWaitingRef.current.postMessage({ type: "SKIP_WAITING" });
     } else {
