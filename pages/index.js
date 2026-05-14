@@ -127,6 +127,7 @@ export default function AskTrevor() {
   }, []);
 
   function doUpdate() {
+    setUpdateAvailable(false); // hide banner immediately
     if (swWaitingRef.current) {
       // Tell the waiting service worker to activate immediately
       swWaitingRef.current.postMessage({ type: "SKIP_WAITING" });
