@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import Head from "next/head";
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
 async function callClaude(body) {
   const res = await fetch("/api/claude", {
@@ -94,14 +94,14 @@ export default function AskTrevor() {
       .catch(() => {});
   }, []);
 
-  function doUpdate() {
+  async function doUpdate() {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(reg => reg.unregister());
-      });
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(reg => reg.unregister()));
     }
     if ("caches" in window) {
-      caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+      const keys = await caches.keys();
+      await Promise.all(keys.map(key => caches.delete(key)));
     }
     window.location.reload(true);
   }
@@ -427,7 +427,7 @@ export default function AskTrevor() {
         w.category || "",
         price || "",
         a.retail_price || "",
-        value || "",
+        markup || "",
         a.quality_stars || "",
         (a.quality_note || "").replace(/,/g, ";"),
         (i + 1) === ssIdx ? "Yes" : "",
@@ -903,7 +903,6 @@ export default function AskTrevor() {
                             const dw = w.drinking_window.toLowerCase();
                             const currentYear = new Date().getFullYear();
                             if (dw.includes("past")) return "Past best";
-                            // Check if any year in the window includes current year or earlier
                             const years = dw.match(/20[2-9][0-9]/g);
                             if (years) {
                               const minYear = Math.min(...years.map(Number));
@@ -949,7 +948,6 @@ export default function AskTrevor() {
                     padding: "4px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.08em", transition: "all 0.15s"
                   }}>{q}</button>
                 ))}
-
               </div>
             </div>
 
