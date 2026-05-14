@@ -1,16 +1,17 @@
-{
-  "name": "winesage",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "prebuild": "node scripts/bump-version.js",
-    "build": "next build",
-    "start": "next start"
+const nextConfig = {
+  reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        source: "/version.json",
+        headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
+      },
+      {
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
+      },
+    ];
   },
-  "dependencies": {
-    "next": "15.3.6",
-    "react": "^18",
-    "react-dom": "^18"
-  }
-}
+};
+
+module.exports = nextConfig;
