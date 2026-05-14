@@ -115,25 +115,25 @@ export default function AskTrevor() {
         });
       });
 
-      // When the new SW takes control, reload
+      // When the new SW takes control, reload after short delay
       let refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (!refreshing) {
           refreshing = true;
-          window.location.reload();
+          setTimeout(() => window.location.reload(), 300);
         }
       });
     }
   }, []);
 
   function doUpdate() {
+    setUpdateAvailable(false);
     if (swWaitingRef.current) {
-      // Tell the waiting service worker to activate immediately
       swWaitingRef.current.postMessage({ type: "SKIP_WAITING" });
-      // controllerchange event above will trigger the reload
     } else {
-      // Fallback: no SW, just force a fresh navigation
-      window.location.href = window.location.origin + "/?v=" + Date.now();
+      setTimeout(() => {
+        window.location.href = window.location.origin + "/?v=" + Date.now();
+      }, 300);
     }
   }
 
@@ -229,7 +229,7 @@ export default function AskTrevor() {
         return w.name + " (" + w.origin + "): Menu " + price;
       }).join("\n");
       wineContextRef.current = basicCtx;
-      setMessages([{ role: "assistant", content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " wines. Quality ratings are ready. Retail prices are loading. Ask me anything." }]);
+      setMessages([{ role: "assistant", content: getGreeting() + ". I have full sight of today's wine list — " + wList.length + " wines. Quality ratings are ready. Retail prices are loading. Ask me anything." }]);
 
       setAnalysing(false);
 
@@ -307,7 +307,7 @@ export default function AskTrevor() {
       setMessages(prev => {
         if (!prev || prev.length === 0) return prev;
         const updated = [...prev];
-        updated[0] = { ...updated[0], content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " wines with quality ratings and retail price analysis. Ask me anything." };
+        updated[0] = { ...updated[0], content: getGreeting() + ". I have full sight of today's wine list — " + wList.length + " wines with quality ratings and retail price analysis. Ask me anything." };
         return updated;
       });
 
@@ -325,7 +325,7 @@ export default function AskTrevor() {
 
       setMessages([{
         role: "assistant",
-        content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " bottles, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
+        content: getGreeting() + ". I have full sight of today's wine list — " + wList.length + " bottles, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
       }]);
 
     } catch (err) {
@@ -345,7 +345,7 @@ export default function AskTrevor() {
     setInput("");
     setChatLoading(true);
 
-    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. You speak with dry wit, genuine expertise, and zero tolerance for bad value. You have full sight of tonight's wine list:\n\n" + wineContextRef.current + "\n\nBe honest about poor value. Celebrate genuine quality. Keep responses concise — 2-4 sentences unless detail is needed. Never be sycophantic.";
+    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. You speak with dry wit, genuine expertise, and zero tolerance for bad value. You have full sight of today's wine list:\n\n" + wineContextRef.current + "\n\nBe honest about poor value. Celebrate genuine quality. Keep responses concise — 2-4 sentences unless detail is needed. Never be sycophantic.";
 
     try {
       const d = await callClaude({
@@ -366,7 +366,7 @@ export default function AskTrevor() {
     if (!foodInput.trim() || pairingLoading) return;
     setPairingLoading(true);
     setPairingResult(null);
-    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. You have full sight of tonight's wine list:\n\n" + wineContextRef.current + "\n\nBe concise and specific. Recommend one wine from the list only.";
+    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. You have full sight of today's wine list:\n\n" + wineContextRef.current + "\n\nBe concise and specific. Recommend one wine from the list only.";
     try {
       const d = await callClaude({
         model: "claude-sonnet-4-5-20250929",
