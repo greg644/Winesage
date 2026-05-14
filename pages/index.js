@@ -1,6 +1,3 @@
-
-// v-test
-
 import { useState, useRef, useEffect } from "react";
 import Head from "next/head";
 
@@ -854,12 +851,13 @@ export default function AskTrevor() {
               </div>
             </div>
 
+            <style>{`@media (orientation: portrait) and (max-width: 767px) { .col-landscape { display: none !important; } }`}</style>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ background: S.surface }}>
-                    {["Wine", "Menu", "Value", "Quality", "Vintage", "Drink", "Note", ""].map(h => (
-                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
+                    {[["Wine", false], ["Menu", false], ["Value", false], ["Quality", false], ["Vintage", true], ["Drink", true], ["Note", true], ["", true]].map(([h, landscape]) => (
+                      <th key={h} className={landscape ? "col-landscape" : ""} style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -889,7 +887,7 @@ export default function AskTrevor() {
                         <td style={{ padding: "12px 12px", color: S.text, whiteSpace: "nowrap", fontFamily: "monospace" }}>{menuPrice}</td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} searching={searchingPrices} /></td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>{w.quality_stars ? <Stars count={w.quality_stars} /> : "-"}</td>
-                        <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: S.dim, whiteSpace: "nowrap" }}>{w.vintage_note ? (() => {
+                        <td className="col-landscape" style={{ padding: "12px 12px", fontSize: "0.68rem", color: S.dim, whiteSpace: "nowrap" }}>{w.vintage_note ? (() => {
                             const vn = w.vintage_note.toLowerCase();
                             if (vn.includes("recent") || vn.includes("n/a") || vn.includes("too young") || vn.includes("assess")) return "n/a";
                             if (vn.includes("legendary") || vn.includes("historic") || vn.includes("greatest")) return "Legendary";
@@ -901,7 +899,7 @@ export default function AskTrevor() {
                             if (vn.includes("poor") || vn.includes("difficult") || vn.includes("challenging") || vn.includes("weak")) return "Poor";
                             return w.vintage_note;
                           })() : (searchingPrices ? "..." : "-")}</td>
-                        <td style={{ padding: "12px 12px", fontSize: "0.68rem", color: (() => {
+                        <td className="col-landscape" style={{ padding: "12px 12px", fontSize: "0.68rem", color: (() => {
                             if (!w.drinking_window) return S.dim;
                             const dw = w.drinking_window.toLowerCase();
                             const currentYear = new Date().getFullYear();
@@ -935,8 +933,8 @@ export default function AskTrevor() {
                             return w.drinking_window;
                           })() : (searchingPrices ? "..." : "-")}
                         </td>
-                        <td style={{ padding: "12px 12px", fontSize: "0.7rem", color: S.dim, minWidth: 140 }}>{w.quality_note || ""}</td>
-                        <td style={{ padding: "12px 12px" }}>
+                        <td className="col-landscape" style={{ padding: "12px 12px", fontSize: "0.7rem", color: S.dim, minWidth: 140 }}>{w.quality_note || ""}</td>
+                        <td className="col-landscape" style={{ padding: "12px 12px" }}>
                           <button onClick={e => { e.stopPropagation(); setActiveTab("chat"); setTimeout(() => sendMessage("Tell me about " + w.name), 100); }}
                             style={{ background: "transparent", border: "1px solid " + S.border, color: S.dim, padding: "3px 10px", cursor: "pointer", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.15s" }}>
                             Ask
