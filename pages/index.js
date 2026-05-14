@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import Head from "next/head";
 
+const APP_VERSION = "1.0.0";
+
 async function callClaude(body) {
   const res = await fetch("/api/claude", {
     method: "POST",
@@ -64,6 +66,7 @@ export default function AskTrevor() {
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [showChoicePrompt, setShowChoicePrompt] = useState(false);
   const [chosenWine, setChosenWine] = useState(null);
   const [searchingPrices, setSearchingPrices] = useState(false);
@@ -79,6 +82,29 @@ export default function AskTrevor() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    fetch("/version.json?t=" + Date.now())
+      .then(r => r.json())
+      .then(data => {
+        if (data.version && data.version !== APP_VERSION) {
+          setUpdateAvailable(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  function doUpdate() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+      });
+    }
+    if ("caches" in window) {
+      caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+    }
+    window.location.reload(true);
+  }
 
   function loadFile(file) {
     if (!file) return;
@@ -601,6 +627,12 @@ export default function AskTrevor() {
         <link rel="apple-touch-icon" href="/icon-512.png" />
       </Head>
       <div style={{ background: S.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px", fontFamily: "Georgia, serif" }}>
+        {updateAvailable && (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, background: S.gold, padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", zIndex: 200 }}>
+            <span style={{ fontFamily: "monospace", fontSize: 11, color: S.bg, fontWeight: 700, letterSpacing: "0.1em" }}>A NEW VERSION OF TREVOR IS AVAILABLE</span>
+            <button onClick={doUpdate} style={{ background: S.bg, color: S.gold, border: "none", padding: "5px 14px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>UPDATE NOW</button>
+          </div>
+        )}
         <div style={{ borderTop: "2px solid " + S.gold, paddingTop: 24, textAlign: "center", marginBottom: 48, width: "100%", maxWidth: 560 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
             <span style={{ fontSize: "0.55rem", letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a6e2e", fontFamily: "monospace" }}>Est. 2025</span>
@@ -680,6 +712,12 @@ export default function AskTrevor() {
         <link rel="apple-touch-icon" href="/icon-512.png" />
       </Head>
       <div style={{ background: S.bg, minHeight: "100vh", color: S.text, fontFamily: "Georgia, serif" }}>
+        {updateAvailable && (
+          <div style={{ background: S.gold, padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: "monospace", fontSize: 11, color: S.bg, fontWeight: 700, letterSpacing: "0.1em" }}>A NEW VERSION OF TREVOR IS AVAILABLE</span>
+            <button onClick={doUpdate} style={{ background: S.bg, color: S.gold, border: "none", padding: "5px 14px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>UPDATE NOW</button>
+          </div>
+        )}
 
         <div style={{ borderBottom: "1px solid " + S.border, padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", background: S.surface }}>
           <div>
