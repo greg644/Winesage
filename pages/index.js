@@ -731,7 +731,7 @@ export default function AskTrevor() {
         <link rel="apple-touch-icon" href="/icon-512.png" />
       </Head>
       <div style={{ background: S.bg, minHeight: "100vh", color: S.text, fontFamily: "Georgia, serif" }}>
-        <style jsx global>{`@media (orientation: portrait) and (max-width: 767px) { .col-landscape { display: none !important; } }`}</style>
+        <style jsx global>{`@media (orientation: portrait) and (max-width: 767px) { .col-landscape { display: none !important; } .wine-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; display: block; } .wine-cell { min-width: 0 !important; max-width: 160px; } th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; } }`}</style>
         {updateAvailable && (
           <div style={{ background: S.gold, padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontFamily: "monospace", fontSize: 11, color: S.bg, fontWeight: 700, letterSpacing: "0.1em" }}>A NEW VERSION OF TREVOR IS AVAILABLE</span>
@@ -870,8 +870,8 @@ export default function AskTrevor() {
                     return (
                       <tr key={i} onClick={() => setSelectedWine(selectedWine?.name === w.name ? null : w)}
                         style={{ background: isSweet ? "rgba(107,174,117,0.04)" : isBestQuality ? "rgba(100,149,237,0.05)" : isBest ? "rgba(201,168,76,0.05)" : "transparent", borderBottom: "1px solid " + S.surface2, cursor: "pointer" }}>
-                        <td style={{ padding: "12px 12px", minWidth: 180 }}>
-                          <div style={{ fontFamily: "Georgia, serif", fontSize: "0.95rem", color: isSweet ? "#6BAE75" : isBest ? S.gold : S.text, fontWeight: 600 }}>
+                        <td className="wine-cell" style={{ padding: "12px 12px", minWidth: 180 }}>
+                          <div className="wine-name" style={{ fontFamily: "Georgia, serif", fontSize: "0.95rem", color: isSweet ? "#6BAE75" : isBest ? S.gold : S.text, fontWeight: 600 }}>
                             {w.name}
                             {isBest && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(201,168,76,0.15)", color: S.gold, border: "1px solid rgba(201,168,76,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Best Value</span>}
                             {isSweet && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(107,174,117,0.15)", color: "#6BAE75", border: "1px solid rgba(107,174,117,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Sweet Spot</span>}
