@@ -731,6 +731,7 @@ export default function AskTrevor() {
         <link rel="apple-touch-icon" href="/icon-512.png" />
       </Head>
       <div style={{ background: S.bg, minHeight: "100vh", color: S.text, fontFamily: "Georgia, serif" }}>
+        <style jsx global>{`@media (orientation: portrait) and (max-width: 767px) { .col-landscape { display: none !important; } }`}</style>
         {updateAvailable && (
           <div style={{ background: S.gold, padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontFamily: "monospace", fontSize: 11, color: S.bg, fontWeight: 700, letterSpacing: "0.1em" }}>A NEW VERSION OF TREVOR IS AVAILABLE</span>
@@ -851,7 +852,6 @@ export default function AskTrevor() {
               </div>
             </div>
 
-            <style>{`@media (orientation: portrait) and (max-width: 767px) { .col-landscape { display: none !important; } }`}</style>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
