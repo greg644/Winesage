@@ -78,12 +78,15 @@ export default function AskTrevor() {
   const fileRef = useRef();
   const chatEndRef = useRef();
   const wineContextRef = useRef("");
+  const swWaitingRef = useRef(null); // holds the waiting service worker
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Version check + service worker update detection
   useEffect(() => {
+    // Check version.json for update banner
     fetch("/version.json?t=" + Date.now())
       .then(r => r.json())
       .then(data => {
@@ -92,18 +95,46 @@ export default function AskTrevor() {
         }
       })
       .catch(() => {});
+
+    // Listen for a waiting service worker (next-pwa with skipWaiting: false)
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        if (reg.waiting) {
+          swWaitingRef.current = reg.waiting;
+          setUpdateAvailable(true);
+        }
+        reg.addEventListener("updatefound", () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener("statechange", () => {
+            if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+              swWaitingRef.current = newWorker;
+              setUpdateAvailable(true);
+            }
+          });
+        });
+      });
+
+      // When the new SW takes control, reload
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+    }
   }, []);
 
-  async function doUpdate() {
-    if ("serviceWorker" in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(reg => reg.unregister()));
+  function doUpdate() {
+    if (swWaitingRef.current) {
+      // Tell the waiting service worker to activate immediately
+      swWaitingRef.current.postMessage({ type: "SKIP_WAITING" });
+      // controllerchange event above will trigger the reload
+    } else {
+      // Fallback: no SW, just force a fresh navigation
+      window.location.href = window.location.origin + "/?v=" + Date.now();
     }
-    if ("caches" in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map(key => caches.delete(key)));
-    }
-    window.location.reload(true);
   }
 
   function loadFile(file) {
@@ -113,7 +144,6 @@ export default function AskTrevor() {
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        // Scale down if too large - max 1600px on longest side
         const MAX = 1600;
         let w = img.width, h = img.height;
         if (w > MAX || h > MAX) {
@@ -159,7 +189,6 @@ export default function AskTrevor() {
       try {
         wList = JSON.parse(t1.substring(i1s, i1e + 1));
       } catch(e) {
-        // Try cleaning the string further
         const cleaned = t1.substring(i1s, i1e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
         wList = JSON.parse(cleaned);
       }
@@ -167,7 +196,6 @@ export default function AskTrevor() {
       setWines(wList);
       const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
 
-      // PHASE 1: Get quality ratings instantly (no web search)
       setAnalyseStatus("Found " + wList.length + " wines - rating quality...");
       const quickList = wList.map((w, i) => (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ")").join("\n");
       const dQuick = await callClaude({
@@ -188,18 +216,14 @@ export default function AskTrevor() {
         console.error("Phase 1 no JSON found. Raw response:", tQuick.substring(0, 300));
       }
 
-      // Show app immediately with quality data
       setPhase("main");
       setAnalyseStatus(null);
-      // Start 5 minute timer for choice prompt
       if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
       choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
-      // Prompt for restaurant name immediately after showing the app
       setTimeout(() => {
         const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
         saveToSheets(wList, analysisData, restaurant);
       }, 500);
-      // Set basic Trevor context so chat works immediately
       const basicCtx = wList.map((w, i) => {
         const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
         return w.name + " (" + w.origin + "): Menu " + price;
@@ -208,9 +232,7 @@ export default function AskTrevor() {
       setMessages([{ role: "assistant", content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " wines. Quality ratings are ready. Retail prices are loading. Ask me anything." }]);
 
       setAnalysing(false);
-      // phase 1 complete - app shown
 
-      // PHASE 2: Search retail prices in background
       if (hasPrices) {
         setSearchingPrices(true);
       }
@@ -221,7 +243,6 @@ export default function AskTrevor() {
         return (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ") menu price: " + price;
       }).join("\n");
 
-      // PHASE 2: Analysis with web search loop
       try {
       const analysisPrompt = hasPrices
         ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
@@ -262,7 +283,6 @@ export default function AskTrevor() {
         const cleaned = t2.substring(i2s, i2e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
         analysisData = JSON.parse(cleaned);
       }
-      // Merge retail prices, vintage notes and drinking window into existing quality data
       setAnalysis(prev => {
         if (!prev) return analysisData;
         return prev.map((q, i) => {
@@ -284,7 +304,6 @@ export default function AskTrevor() {
         return w.name + " (" + w.origin + "): Menu " + price + ", Est retail ~GBP" + (a.retail_price || "unknown") + ", Value ~" + (a.markup_pct || "?") + "%, Quality " + (a.quality_stars || "?") + "/5. " + (a.quality_note || "");
       }).join("\n");
       wineContextRef.current = ctx;
-      // Update Trevor's opening message now that prices are available
       setMessages(prev => {
         if (!prev || prev.length === 0) return prev;
         const updated = [...prev];
@@ -292,7 +311,6 @@ export default function AskTrevor() {
         return updated;
       });
 
-      // Sweet Spot for opening message
       let ssIdx = null, ssScore = -Infinity;
       wList.forEach((w, i) => {
         const a = analysisData.find(x => x.index === i + 1) || {};
@@ -309,8 +327,6 @@ export default function AskTrevor() {
         role: "assistant",
         content: getGreeting() + ". I have full sight of tonight's wine list — " + wList.length + " bottles, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
       }]);
-
-
 
     } catch (err) {
       setAnalyseStatus("Error: " + (err.message || "Something went wrong."));
@@ -388,7 +404,6 @@ export default function AskTrevor() {
     }
     setChatLoading(false);
 
-    // Log chosen wine to sheets
     const date = new Date().toLocaleDateString("en-GB");
     try {
       await fetch("/api/sheets", {
@@ -402,7 +417,6 @@ export default function AskTrevor() {
   async function saveToSheets(wList, analysisData, restaurant) {
     const date = new Date().toLocaleDateString("en-GB");
     const rows = [];
-    // Add header if first row
     rows.push(["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Value %", "Quality Stars", "Note", "Sweet Spot", "Best Value"]);
     wList.forEach((w, i) => {
       const a = analysisData.find(x => x.index === i + 1) || {};
@@ -745,7 +759,6 @@ export default function AskTrevor() {
 
         {activeTab === "list" && (
           <div style={{ padding: "20px 24px" }}>
-
             {searchingPrices && (
               <div style={{ marginBottom: 12, padding: "8px 14px", background: "#1a1408", border: "0.5px solid #2a2010", fontSize: 11, fontFamily: "monospace", color: "#5a4f3a", letterSpacing: "0.1em", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#c9a84c", opacity: 0.6, animation: "trevorPulse 1.2s ease infinite" }} />
@@ -767,7 +780,6 @@ export default function AskTrevor() {
               </div>
             )}
 
-            {/* Food Pairing + Share */}
             <div style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "stretch" }}>
             <div style={{ flex: 1, border: "1px solid " + S.border, background: S.surface, padding: "16px 20px" }}>
               <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace", marginBottom: 12 }}>Trevor's Food Pairing</div>
@@ -849,7 +861,6 @@ export default function AskTrevor() {
                     const isSweet = w.index === sweetSpotIdx;
                     const isBestQuality = w.index === bestQualityIdx;
                     const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass + "/gl" : "-";
-                    const retail = w.retail_price ? "~£" + w.retail_price : "-";
                     return (
                       <tr key={i} onClick={() => setSelectedWine(selectedWine?.name === w.name ? null : w)}
                         style={{ background: isSweet ? "rgba(107,174,117,0.04)" : isBestQuality ? "rgba(100,149,237,0.05)" : isBest ? "rgba(201,168,76,0.05)" : "transparent", borderBottom: "1px solid " + S.surface2, cursor: "pointer" }}>
@@ -929,7 +940,6 @@ export default function AskTrevor() {
                 </tbody>
               </table>
             </div>
-
           </div>
         )}
 
@@ -1003,38 +1013,38 @@ export default function AskTrevor() {
           </div>
         )}
       </div>
-    {/* Choice prompt modal */}
-    {showChoicePrompt && wines && (
-      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: "0 0 24px" }}>
-        <div style={{ background: "#151208", border: "1px solid #c9a84c", borderRadius: 4, padding: "20px 20px", width: "100%", maxWidth: 560, margin: "0 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#2a2210", border: "1px solid #c9a84c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🍷</div>
-            <div>
-              <div style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 15, color: "#c9a84c" }}>Trevor</div>
-              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#5a4f3a", letterSpacing: "0.1em" }}>What did you order?</div>
+
+      {showChoicePrompt && wines && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: "0 0 24px" }}>
+          <div style={{ background: "#151208", border: "1px solid #c9a84c", borderRadius: 4, padding: "20px 20px", width: "100%", maxWidth: 560, margin: "0 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#2a2210", border: "1px solid #c9a84c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🍷</div>
+              <div>
+                <div style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 15, color: "#c9a84c" }}>Trevor</div>
+                <div style={{ fontFamily: "monospace", fontSize: 9, color: "#5a4f3a", letterSpacing: "0.1em" }}>What did you order?</div>
+              </div>
+              <button onClick={() => setShowChoicePrompt(false)} style={{ marginLeft: "auto", background: "transparent", border: "none", color: "#5a4f3a", fontSize: 18, cursor: "pointer" }}>×</button>
             </div>
-            <button onClick={() => setShowChoicePrompt(false)} style={{ marginLeft: "auto", background: "transparent", border: "none", color: "#5a4f3a", fontSize: 18, cursor: "pointer" }}>×</button>
+            <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+              {wines.map((w, i) => (
+                <button key={i} onClick={() => handleChoice(w)} style={{
+                  background: "transparent", border: "0.5px solid #2a2318", color: "#d4b87a",
+                  padding: "10px 12px", cursor: "pointer", textAlign: "left", borderRadius: 2,
+                  fontFamily: "Georgia, serif", fontSize: 13, transition: "all 0.15s"
+                }}>
+                  <div style={{ color: "#e2cfa0", fontSize: 13 }}>{w.name}</div>
+                  <div style={{ fontSize: 11, color: "#5a4f3a", marginTop: 2 }}>{w.origin} · £{w.price_bottle || w.price_glass}</div>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowChoicePrompt(false)} style={{
+              marginTop: 12, width: "100%", background: "transparent", border: "0.5px solid #2a2318",
+              color: "#5a4f3a", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.15em",
+              textTransform: "uppercase", padding: 10, cursor: "pointer"
+            }}>Skip</button>
           </div>
-          <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
-            {wines.map((w, i) => (
-              <button key={i} onClick={() => handleChoice(w)} style={{
-                background: "transparent", border: "0.5px solid #2a2318", color: "#d4b87a",
-                padding: "10px 12px", cursor: "pointer", textAlign: "left", borderRadius: 2,
-                fontFamily: "Georgia, serif", fontSize: 13, transition: "all 0.15s"
-              }}>
-                <div style={{ color: "#e2cfa0", fontSize: 13 }}>{w.name}</div>
-                <div style={{ fontSize: 11, color: "#5a4f3a", marginTop: 2 }}>{w.origin} · £{w.price_bottle || w.price_glass}</div>
-              </button>
-            ))}
-          </div>
-          <button onClick={() => setShowChoicePrompt(false)} style={{
-            marginTop: 12, width: "100%", background: "transparent", border: "0.5px solid #2a2318",
-            color: "#5a4f3a", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.15em",
-            textTransform: "uppercase", padding: 10, cursor: "pointer"
-          }}>Skip</button>
         </div>
-      </div>
-    )}
+      )}
     </>
   );
 }
