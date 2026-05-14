@@ -30,9 +30,9 @@ function getGreeting() {
 
 function Stars({ count, max = 5 }) {
   return (
-    <span style={{ display: "inline-flex", gap: 2 }}>
+    <span style={{ display: "inline-flex", gap: 1 }}>
       {Array.from({ length: max }).map((_, i) => (
-        <svg key={i} width={13} height={13} viewBox="0 0 24 24"
+        <svg key={i} width={10} height={10} viewBox="0 0 24 24"
           fill={i < count ? "#C9A84C" : "none"} stroke="#C9A84C" strokeWidth="1.5">
           <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
         </svg>
@@ -856,8 +856,8 @@ export default function AskTrevor() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ background: S.surface }}>
-                    {[["Wine", false], ["Menu", false], ["£££", false], ["★", false], ["Vintage", true], ["Drink", true], ["Note", true], ["", true]].map(([h, landscape]) => (
-                      <th key={h} className={landscape ? "col-landscape" : ""} style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
+                    {[["Wine", false], ["Menu", false], ["£££", false], ["★★★", false], ["Vintage", true], ["Drink", true], ["Note", true], ["", true]].map(([h, landscape]) => (
+                      <th key={h} className={landscape ? "col-landscape" : ""} style={{ padding: "10px 12px", textAlign: "left", fontSize: h === "★★★" ? "0.75rem" : "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: S.dim, borderBottom: "1px solid " + S.border, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "monospace" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
