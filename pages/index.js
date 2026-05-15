@@ -319,16 +319,18 @@ export default function AskTrevor() {
       });
 
       let ssIdx = null, ssScore = -Infinity;
-      wList.forEach((w, i) => {
-        const a = analysisData.find(x => x.index === i + 1) || {};
-        const price = w.price_bottle || w.price_glass;
-        const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
-        if (!price || !a.quality_stars || !markup || markup <= 0) return;
-        const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
-        if (score > ssScore) { ssScore = score; ssIdx = i; }
-      });
+      if (analysisData) {
+        wList.forEach((w, i) => {
+          const a = analysisData.find(x => x.index === i + 1) || {};
+          const price = w.price_bottle || w.price_glass;
+          const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
+          if (!price || !a.quality_stars || !markup || markup <= 0) return;
+          const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
+          if (score > ssScore) { ssScore = score; ssIdx = i; }
+        });
+      }
       const ssWine = ssIdx !== null ? wList[ssIdx] : null;
-      const ssGreeting = ssWine ? " Tonight's sweet spot is the " + ssWine.name + " — I'd start there." : "";
+      const ssGreeting = ssWine ? " Today's sweet spot is the " + ssWine.name + " — I'd start there." : "";
 
       setMessages([{
         role: "assistant",
