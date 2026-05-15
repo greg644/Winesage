@@ -72,6 +72,7 @@ export default function AskTrevor() {
   const [searchingPrices, setSearchingPrices] = useState(false);
   const [choiceComment, setChoiceComment] = useState(null);
   const choiceTimerRef = useRef(null);
+  const restaurantTimerRef = useRef(null);
   const [foodInput, setFoodInput] = useState("");
   const [pairingResult, setPairingResult] = useState(null);
   const [pairingLoading, setPairingLoading] = useState(false);
@@ -760,7 +761,7 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
