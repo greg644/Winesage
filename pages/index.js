@@ -30,9 +30,9 @@ function getGreeting() {
 
 function Stars({ count, max = 5 }) {
   return (
-    <span style={{ display: "inline-flex", gap: 1 }}>
+    <span style={{ display: "inline-flex", gap: 1, flexShrink: 0 }}>
       {Array.from({ length: max }).map((_, i) => (
-        <svg key={i} width={10} height={10} viewBox="0 0 24 24"
+        <svg key={i} width={9} height={9} viewBox="0 0 24 24"
           fill={i < count ? "#C9A84C" : "none"} stroke="#C9A84C" strokeWidth="1.5">
           <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
         </svg>
@@ -227,7 +227,7 @@ export default function AskTrevor() {
       choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
       setTimeout(() => {
         const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
-        saveToSheets(wList, analysisData, restaurant);
+        saveToSheets(wList, [], restaurant);
       }, 500);
       const basicCtx = wList.map((w, i) => {
         const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
@@ -303,12 +303,14 @@ export default function AskTrevor() {
         setTimeout(() => setAnalyseStatus(null), 4000);
       }
 
-      const ctx = wList.map((w, i) => {
-        const a = analysisData.find(x => x.index === i + 1) || {};
-        const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
-        return w.name + " (" + w.origin + "): Menu " + price + ", Est retail ~GBP" + (a.retail_price || "unknown") + ", Value ~" + (a.markup_pct || "?") + "%, Quality " + (a.quality_stars || "?") + "/5. " + (a.quality_note || "");
-      }).join("\n");
-      wineContextRef.current = ctx;
+      if (analysisData) {
+        const ctx = wList.map((w, i) => {
+          const a = analysisData.find(x => x.index === i + 1) || {};
+          const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
+          return w.name + " (" + w.origin + "): Menu " + price + ", Est retail ~GBP" + (a.retail_price || "unknown") + ", Value ~" + (a.markup_pct || "?") + "%, Quality " + (a.quality_stars || "?") + "/5. " + (a.quality_note || "");
+        }).join("\n");
+        wineContextRef.current = ctx;
+      }
       setMessages(prev => {
         if (!prev || prev.length === 0) return prev;
         const updated = [...prev];
@@ -446,7 +448,7 @@ export default function AskTrevor() {
         w.category || "",
         price || "",
         a.retail_price || "",
-        markup || "",
+        markup != null ? markup + "%" : "",
         a.quality_stars || "",
         (a.quality_note || "").replace(/,/g, ";"),
         (i + 1) === ssIdx ? "Yes" : "",
@@ -731,7 +733,7 @@ export default function AskTrevor() {
         <link rel="apple-touch-icon" href="/icon-512.png" />
       </Head>
       <div style={{ background: S.bg, minHeight: "100vh", color: S.text, fontFamily: "Georgia, serif" }}>
-        <style jsx global>{`@media (orientation: portrait) and (max-width: 767px) { .col-landscape { display: none !important; } .wine-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; display: block; } .wine-cell { min-width: 0 !important; max-width: 160px; } th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; } }`}</style>
+        <style jsx global>{`@media (orientation: portrait) and (max-width: 767px) { .col-landscape { display: none !important; } .wine-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; display: block; } .wine-cell { min-width: 0 !important; max-width: 140px; } th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; } table td, table th { padding: 8px 6px !important; } }`}</style>
         {updateAvailable && (
           <div style={{ background: S.gold, padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontFamily: "monospace", fontSize: 11, color: S.bg, fontWeight: 700, letterSpacing: "0.1em" }}>A NEW VERSION OF TREVOR IS AVAILABLE</span>
