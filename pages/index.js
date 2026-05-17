@@ -297,6 +297,8 @@ export default function AskTrevor() {
         });
       });
       setSearchingPrices(false);
+      // Now save to sheets with full data
+      saveToSheets(wList, analysisData, wineContextRef._restaurant || "Unknown");
       } catch(phase2Err) {
         console.error('Phase 2 error:', phase2Err.message);
         setSearchingPrices(false);
