@@ -44,8 +44,8 @@ function Stars({ count, max = 5 }) {
 function MarkupBadge({ pct, searching }) {
   if (searching && pct == null) return <span style={{ color: "#3a3020", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.05em" }}>searching...</span>;
   if (pct == null) return <span style={{ color: "#3a3020", fontSize: 12 }}>—</span>;
-  const color = pct > 250 ? "#E05C5C" : pct > 150 ? "#C9A84C" : "#6BAE75";
-  const label = pct > 250 ? "High" : pct > 150 ? "Typical" : "Good";
+  const color = pct > 180 ? "#E05C5C" : pct > 100 ? "#C9A84C" : "#6BAE75";
+  const label = pct > 180 ? "High" : pct > 100 ? "Typical" : "Good";
   return <span style={{ color, fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>{label}</span>;
 }
 
@@ -181,7 +181,7 @@ export default function AskTrevor() {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: imgType, data: img64 } },
-            { type: "text", text: "Extract all wines from this wine list image. Some lists may not have prices — that is fine, just set price_glass and price_bottle to null. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. IMPORTANT: create exactly ONE entry per wine. Each item must have: name, origin, price_glass (number or null), price_bottle (number or null), glass_size (125, 175 or 250 or null), category (red/white/rose/sparkling). If no prices are shown set all price fields to null. Do not create duplicate entries for the same wine. Ignore magnum and large format prices." }
+            { type: "text", text: "Extract all wines from this wine list image. Some lists may not have prices — that is fine, just set price_glass and price_bottle to null. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. IMPORTANT: create exactly ONE entry per wine. Each item must have: name, origin, price_glass (number or null), price_bottle (number or null), glass_size (125, 175 or 250 or null), category (red/white/rose/sparkling), currency (the ISO currency code detected from the list e.g. GBP, DKK, EUR, USD — default to GBP if unclear). If no prices are shown set all price fields to null. Do not create duplicate entries for the same wine. Ignore magnum and large format prices." }
           ]
         }]
       });
@@ -200,6 +200,7 @@ export default function AskTrevor() {
       }
       if (!wList.length) throw new Error("No wines found in this image. Please make sure you are photographing a wine list — ideally in portrait orientation with good lighting and the full list visible.");
       setWines(wList);
+      const detectedCurrency = wList.find(w => w.currency)?.currency || "GBP";
       const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
 
       setAnalyseStatus("Found " + wList.length + " wines - rating quality...");
@@ -230,8 +231,9 @@ export default function AskTrevor() {
         const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
         saveToSheets(wList, [], restaurant);
       }, 500);
+      const currencySymbol = detectedCurrency === "DKK" ? "kr" : detectedCurrency === "EUR" ? "€" : detectedCurrency === "USD" ? "$" : detectedCurrency === "NOK" ? "kr" : detectedCurrency === "SEK" ? "kr" : "£";
       const basicCtx = wList.map((w, i) => {
-        const price = w.price_bottle ? "GBP" + w.price_bottle : w.price_glass ? "GBP" + w.price_glass + "/glass" : "unknown";
+        const price = w.price_bottle ? detectedCurrency + w.price_bottle : w.price_glass ? detectedCurrency + w.price_glass + "/glass" : "unknown";
         return w.name + " (" + w.origin + "): Menu " + price;
       }).join("\n");
       wineContextRef.current = basicCtx;
@@ -250,9 +252,10 @@ export default function AskTrevor() {
       }).join("\n");
 
       try {
+      const currencyNote = detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Convert all retail prices to " + detectedCurrency + " using current exchange rates before calculating markup_pct." : "";
       const analysisPrompt = hasPrices
-        ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
-        : "For each wine below, rate the quality 1-5 and estimate the typical UK retail price. There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
+        ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
+        : "For each wine below, rate the quality 1-5 and estimate the typical retail price." + currencyNote + " There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
       let analysisText = "";
       let searchMessages = [{ role: "user", content: analysisPrompt }];
       for (let si = 0; si < 15; si++) {
@@ -585,9 +588,9 @@ export default function AskTrevor() {
         ctx.fillText(menuPrice, colX[1], y);
 
         const pct = a.markup_pct;
-        const vLabel = pct == null ? "-" : pct > 250 ? "High" : pct > 150 ? "Typical" : "Good";
+        const vLabel = pct == null ? "-" : pct > 180 ? "High" : pct > 100 ? "Typical" : "Good";
         ctx.font = "bold 11px monospace";
-        ctx.fillStyle = pct == null ? "#9a8a6a" : pct > 250 ? "#E05C5C" : pct > 150 ? "#C9A84C" : "#6BAE75";
+        ctx.fillStyle = pct == null ? "#9a8a6a" : pct > 180 ? "#E05C5C" : pct > 100 ? "#C9A84C" : "#6BAE75";
         ctx.fillText(vLabel, colX[2], y);
 
         ctx.font = "12px Arial";
@@ -873,7 +876,9 @@ export default function AskTrevor() {
                     const isBest = w.index === bestIdx;
                     const isSweet = w.index === sweetSpotIdx;
                     const isBestQuality = w.index === bestQualityIdx;
-                    const menuPrice = w.price_bottle ? "£" + w.price_bottle : w.price_glass ? "£" + w.price_glass + "/gl" : "-";
+                    const wCurrency = w.currency || "GBP";
+                    const wSymbol = wCurrency === "DKK" ? "kr" : wCurrency === "EUR" ? "€" : wCurrency === "USD" ? "$" : wCurrency === "NOK" ? "kr" : wCurrency === "SEK" ? "kr" : "£";
+                    const menuPrice = w.price_bottle ? wSymbol + w.price_bottle : w.price_glass ? wSymbol + w.price_glass + "/gl" : "-";
                     return (
                       <tr key={i} onClick={() => setSelectedWine(selectedWine?.name === w.name ? null : w)}
                         style={{ background: isSweet ? "rgba(107,174,117,0.04)" : isBestQuality ? "rgba(100,149,237,0.05)" : isBest ? "rgba(201,168,76,0.05)" : "transparent", borderBottom: "1px solid " + S.surface2, cursor: "pointer" }}>
