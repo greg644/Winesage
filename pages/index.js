@@ -79,7 +79,9 @@ export default function AskTrevor() {
   const fileRef = useRef();
   const chatEndRef = useRef();
   const wineContextRef = useRef("");
-  const swWaitingRef = useRef(null); // holds the waiting service worker
+  const swWaitingRef = useRef(null);
+  const analysisDataRef = useRef(null);
+  const wListRef = useRef([]); // holds the waiting service worker
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -200,6 +202,7 @@ export default function AskTrevor() {
       }
       if (!wList.length) throw new Error("No wines found in this image. Please make sure you are photographing a wine list — ideally in portrait orientation with good lighting and the full list visible.");
       setWines(wList);
+      wListRef.current = wList;
       const detectedCurrency = wList.find(w => w.currency)?.currency || "GBP";
       const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
 
@@ -229,7 +232,7 @@ export default function AskTrevor() {
       choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
       setTimeout(() => {
         const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
-        saveToSheets(wList, [], restaurant);
+        wineContextRef._restaurant = restaurant;
       }, 500);
       const currencySymbol = detectedCurrency === "DKK" ? "kr" : detectedCurrency === "EUR" ? "€" : detectedCurrency === "USD" ? "$" : detectedCurrency === "NOK" ? "kr" : detectedCurrency === "SEK" ? "kr" : detectedCurrency === "SGD" ? "S$" : detectedCurrency === "AUD" ? "A$" : detectedCurrency === "CHF" ? "Fr" : detectedCurrency === "JPY" ? "¥" : detectedCurrency === "AED" ? "AED" : "£";
       const basicCtx = wList.map((w, i) => {
@@ -301,6 +304,7 @@ export default function AskTrevor() {
       });
       setSearchingPrices(false);
       // Now save to sheets with full data
+      analysisDataRef.current = analysisData;
       if (analysisData) saveToSheets(wList, analysisData, wineContextRef._restaurant || "Unknown");
       } catch(phase2Err) {
         console.error('Phase 2 error:', phase2Err.message);
@@ -766,7 +770,7 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
