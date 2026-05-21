@@ -231,7 +231,7 @@ export default function AskTrevor() {
         const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
         saveToSheets(wList, [], restaurant);
       }, 500);
-      const currencySymbol = detectedCurrency === "DKK" ? "kr" : detectedCurrency === "EUR" ? "€" : detectedCurrency === "USD" ? "$" : detectedCurrency === "NOK" ? "kr" : detectedCurrency === "SEK" ? "kr" : "£";
+      const currencySymbol = detectedCurrency === "DKK" ? "kr" : detectedCurrency === "EUR" ? "€" : detectedCurrency === "USD" ? "$" : detectedCurrency === "NOK" ? "kr" : detectedCurrency === "SEK" ? "kr" : detectedCurrency === "SGD" ? "S$" : detectedCurrency === "AUD" ? "A$" : detectedCurrency === "CHF" ? "Fr" : detectedCurrency === "JPY" ? "¥" : detectedCurrency === "AED" ? "AED" : "£";
       const basicCtx = wList.map((w, i) => {
         const price = w.price_bottle ? detectedCurrency + w.price_bottle : w.price_glass ? detectedCurrency + w.price_glass + "/glass" : "unknown";
         return w.name + " (" + w.origin + "): Menu " + price;
@@ -877,7 +877,7 @@ export default function AskTrevor() {
                     const isSweet = w.index === sweetSpotIdx;
                     const isBestQuality = w.index === bestQualityIdx;
                     const wCurrency = w.currency || "GBP";
-                    const wSymbol = wCurrency === "DKK" ? "kr" : wCurrency === "EUR" ? "€" : wCurrency === "USD" ? "$" : wCurrency === "NOK" ? "kr" : wCurrency === "SEK" ? "kr" : "£";
+                    const wSymbol = wCurrency === "DKK" ? "kr" : wCurrency === "EUR" ? "€" : wCurrency === "USD" ? "$" : wCurrency === "NOK" ? "kr" : wCurrency === "SEK" ? "kr" : wCurrency === "SGD" ? "S$" : wCurrency === "AUD" ? "A$" : wCurrency === "CHF" ? "Fr" : wCurrency === "JPY" ? "¥" : wCurrency === "AED" ? "AED" : "£";
                     const menuPrice = w.price_bottle ? wSymbol + w.price_bottle : w.price_glass ? wSymbol + w.price_glass + "/gl" : "-";
                     return (
                       <tr key={i} onClick={() => setSelectedWine(selectedWine?.name === w.name ? null : w)}
