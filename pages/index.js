@@ -254,6 +254,7 @@ export default function AskTrevor() {
         return (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ") menu price: " + price;
       }).join("\n");
 
+      let analysisData;
       try {
       const currencyNote = detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Convert all retail prices to " + detectedCurrency + " using current exchange rates before calculating markup_pct." : "";
       const analysisPrompt = hasPrices
@@ -288,7 +289,6 @@ export default function AskTrevor() {
       const i2s = t2.indexOf("[");
       const i2e = t2.lastIndexOf("]");
       if (i2s === -1) throw new Error("Analysis failed. Please try again.");
-      let analysisData;
       try {
         analysisData = JSON.parse(t2.substring(i2s, i2e + 1));
       } catch(e) {
