@@ -819,10 +819,12 @@ export default function AskTrevor() {
                 }}>{pairingLoading ? "..." : "Ask"}</button>
               </div>
               {pairingResult && (
-                <div style={{ marginTop: 12, fontSize: "0.82rem", color: S.text, fontFamily: "Georgia, serif", lineHeight: 1.7, borderTop: "1px solid " + S.border, paddingTop: 12, fontStyle: "italic" }}>
-                  {pairingResult.split("**").map((part, j) =>
-                    j % 2 === 1 ? <strong key={j} style={{ color: S.gold, fontStyle: "normal" }}>{part}</strong> : part
-                  )}
+                <div style={{ marginTop: 12, borderTop: "1px solid " + S.border, paddingTop: 12, maxHeight: 80, overflowY: "auto" }}>
+                  <div style={{ fontSize: "0.82rem", color: S.text, fontFamily: "Georgia, serif", lineHeight: 1.7, fontStyle: "italic" }}>
+                    {pairingResult.split("**").map((part, j) =>
+                      j % 2 === 1 ? <strong key={j} style={{ color: S.gold, fontStyle: "normal" }}>{part}</strong> : part
+                    )}
+                  </div>
                 </div>
               )}
             </div>
