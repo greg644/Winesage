@@ -175,7 +175,7 @@ export default function AskTrevor() {
     setAnalyseStatus("Reading wine list...");
     try {
       const d1 = await callClaude({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 4000,
         messages: [{
           role: "user",
@@ -206,7 +206,7 @@ export default function AskTrevor() {
       setAnalyseStatus("Found " + wList.length + " wines - rating quality...");
       const quickList = wList.map((w, i) => (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ")").join("\n");
       const dQuick = await callClaude({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 3000,
         messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{index:1,quality_stars:4,quality_note:short phrase,retail_price:null,markup_pct:null}]. Wines: " + quickList + quickList }]
       });
@@ -260,7 +260,7 @@ export default function AskTrevor() {
       let searchMessages = [{ role: "user", content: analysisPrompt }];
       for (let si = 0; si < 15; si++) {
         const sd = await callClaude({
-          model: "claude-sonnet-4-5-20250929",
+          model: "claude-sonnet-4-6",
           max_tokens: 4000,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: searchMessages,
@@ -364,7 +364,7 @@ export default function AskTrevor() {
 
     try {
       const d = await callClaude({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 500,
         system: systemPrompt,
         messages: updated.map(m => ({ role: m.role, content: m.content }))
@@ -384,7 +384,7 @@ export default function AskTrevor() {
     const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. You have full sight of today's wine list:\n\n" + wineContextRef.current + "\n\nBe concise and specific. Recommend one wine from the list only.";
     try {
       const d = await callClaude({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 200,
         system: systemPrompt,
         messages: [{ role: "user", content: "I am eating " + foodInput.trim() + ". Which wine on this list should I order?" }]
@@ -406,7 +406,7 @@ export default function AskTrevor() {
     const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. Be brief — one sentence of dry wit congratulating or gently teasing the choice. Never be sycophantic.";
     try {
       const d = await callClaude({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 100,
         system: systemPrompt,
         messages: [{ role: "user", content: "I chose the " + wine.name + " (" + wine.origin + ") at £" + (wine.price_bottle || wine.price_glass) + "." }]
