@@ -489,7 +489,7 @@ export default function AskTrevor() {
         a.retail_price || "",
         markup != null ? markup + "%" : "",
         a.quality_stars || "",
-        (a.quality_note || "").replace(/,/g, ";").substring(0, 50),
+        (a.quality_note || "").replace(/,/g, ";").split(" ").slice(0, 3).join(" "),
         (i + 1) === ssIdx ? "Yes" : "",
         (i + 1) === bstValueIdx ? "Yes" : "",
         (i + 1) === bstQualityIdx ? "Yes" : ""
