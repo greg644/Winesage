@@ -826,6 +826,20 @@ export default function AskTrevor() {
               </div>
             )}
 
+            {trevorVerdict && (
+              <div style={{ marginBottom: 16, border: "1px solid #2a2318", background: "#0d0b07", padding: "14px 20px", display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#2a2210", border: "1px solid " + S.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>🍷</div>
+                <div>
+                  <div style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace", marginBottom: 6 }}>Trevor's Verdict</div>
+                  <div style={{ fontFamily: "Georgia, serif", fontSize: "0.85rem", color: S.text, lineHeight: 1.7, fontStyle: "italic" }}>
+                    {trevorVerdict.split("**").map((part, j) =>
+                      j % 2 === 1 ? <strong key={j} style={{ color: S.gold, fontStyle: "normal" }}>{part}</strong> : part
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "stretch" }}>
             <div style={{ flex: 1, border: "1px solid " + S.border, background: S.surface, padding: "16px 20px" }}>
               <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace", marginBottom: 12 }}>Trevor's Food Pairing</div>
