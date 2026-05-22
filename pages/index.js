@@ -436,22 +436,32 @@ export default function AskTrevor() {
   async function saveToSheets(wList, analysisData, restaurant) {
     const date = new Date().toLocaleDateString("en-GB");
     const rows = [];
-    rows.push(["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Value %", "Quality Stars", "Note", "Sweet Spot", "Best Value"]);
+    rows.push(["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Value %", "Quality Stars", "Note", "Sweet Spot", "Best Value", "Best Quality"]);
+
+    // Pre-calculate Sweet Spot, Best Value and Best Quality across full list
+    let ssIdx = null, ssScore = -Infinity;
+    let bstValueIdx = null, loMarkup = Infinity;
+    let bstQualityIdx = null, hiQuality = 0;
+
+    wList.forEach((w2, j) => {
+      const a2 = analysisData.find(x => x.index === j + 1) || {};
+      const p2 = w2.price_bottle || w2.price_glass;
+      const m2 = a2.markup_pct || (a2.retail_price && p2 ? Math.round(((p2 - a2.retail_price) / a2.retail_price) * 100) : null);
+      // Sweet Spot
+      if (p2 && a2.quality_stars && m2 && m2 > 0) {
+        const score = (Math.pow(a2.quality_stars, 2) * 10) / (m2 / 100) / Math.pow(p2, 0.4);
+        if (score > ssScore) { ssScore = score; ssIdx = j + 1; }
+      }
+      // Best Value
+      if (m2 != null && m2 < loMarkup) { loMarkup = m2; bstValueIdx = j + 1; }
+      // Best Quality
+      if (a2.quality_stars != null && a2.quality_stars > hiQuality) { hiQuality = a2.quality_stars; bstQualityIdx = j + 1; }
+    });
+
     wList.forEach((w, i) => {
       const a = analysisData.find(x => x.index === i + 1) || {};
       const price = w.price_bottle || w.price_glass;
       const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
-      let ssIdx = null, ssScore = -Infinity;
-      wList.forEach((w2, j) => {
-        const a2 = analysisData.find(x => x.index === j + 1) || {};
-        const p2 = w2.price_bottle || w2.price_glass;
-        const m2 = a2.markup_pct || (a2.retail_price && p2 ? Math.round(((p2 - a2.retail_price) / a2.retail_price) * 100) : null);
-        if (!p2 || p2 > 100 || !a2.quality_stars || !m2 || m2 <= 0) return;
-        const score = (Math.pow(a2.quality_stars, 2) * 10) / (m2 / 100) / Math.pow(p2, 0.4);
-        if (score > ssScore) { ssScore = score; ssIdx = j + 1; }
-      });
-      let bstIdx = null, loMarkup = Infinity;
-      analysisData.forEach(a2 => { if (a2.markup_pct != null && a2.markup_pct < loMarkup) { loMarkup = a2.markup_pct; bstIdx = a2.index; } });
       rows.push([
         date,
         restaurant || "Unknown",
@@ -464,7 +474,8 @@ export default function AskTrevor() {
         a.quality_stars || "",
         (a.quality_note || "").replace(/,/g, ";"),
         (i + 1) === ssIdx ? "Yes" : "",
-        (i + 1) === bstIdx ? "Yes" : ""
+        (i + 1) === bstValueIdx ? "Yes" : "",
+        (i + 1) === bstQualityIdx ? "Yes" : ""
       ]);
     });
     try {
