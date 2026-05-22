@@ -451,7 +451,7 @@ export default function AskTrevor() {
   async function saveToSheets(wList, analysisData, restaurant) {
     const date = new Date().toLocaleDateString("en-GB");
     const rows = [];
-    rows.push(["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Value %", "Quality Stars", "Sweet Spot", "Best Value", "Best Quality"]);
+    rows.push(["Date", "Restaurant", "Wine", "Origin", "Category", "Menu Price", "Est. Retail", "Value %", "Quality Stars", "Note", "Sweet Spot", "Best Value", "Best Quality"]);
 
     // Pre-calculate Sweet Spot, Best Value and Best Quality across full list
     let ssIdx = null, ssScore = -Infinity;
@@ -487,6 +487,7 @@ export default function AskTrevor() {
         a.retail_price || "",
         markup != null ? markup + "%" : "",
         a.quality_stars || "",
+        (a.quality_note || "").replace(/,/g, ";").substring(0, 50),
         (i + 1) === ssIdx ? "Yes" : "",
         (i + 1) === bstValueIdx ? "Yes" : "",
         (i + 1) === bstQualityIdx ? "Yes" : ""
