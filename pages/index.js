@@ -70,6 +70,7 @@ export default function AskTrevor() {
   const [showChoicePrompt, setShowChoicePrompt] = useState(false);
   const [chosenWine, setChosenWine] = useState(null);
   const [searchingPrices, setSearchingPrices] = useState(false);
+  const [trevorVerdict, setTrevorVerdict] = useState(null);
   const [choiceComment, setChoiceComment] = useState(null);
   const choiceTimerRef = useRef(null);
   const restaurantTimerRef = useRef(null);
@@ -224,6 +225,20 @@ export default function AskTrevor() {
         }
       } else {
         console.error("Phase 1 no JSON found. Raw response:", tQuick.substring(0, 300));
+      }
+
+      // Phase 1b: Get Trevor's overall verdict on the list
+      try {
+        const dVerdict = await callClaude({
+          model: "claude-sonnet-4-6",
+          max_tokens: 150,
+          system: "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. Be concise, opinionated and dry. Maximum 2 sentences.",
+          messages: [{ role: "user", content: "Give your overall verdict on this wine list in 2 sentences — comment on the quality, value, and anything that stands out (good or bad). Wines: " + quickList }]
+        });
+        const verdict = dVerdict.content.find(b => b.type === "text")?.text || "";
+        if (verdict) setTrevorVerdict(verdict);
+      } catch(e) {
+        console.error("Verdict error:", e.message);
       }
 
       setPhase("main");
@@ -781,7 +796,7 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setTrevorVerdict(null); }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
