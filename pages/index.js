@@ -41,11 +41,12 @@ function Stars({ count, max = 5 }) {
   );
 }
 
-function MarkupBadge({ pct, searching }) {
+function MarkupBadge({ pct, searching, price }) {
   if (searching && pct == null) return <span style={{ color: "#3a3020", fontFamily: "monospace", fontSize: 10, letterSpacing: "0.05em" }}>searching...</span>;
   if (pct == null) return <span style={{ color: "#3a3020", fontSize: 12 }}>—</span>;
-  const color = pct > 180 ? "#E05C5C" : pct > 100 ? "#C9A84C" : "#6BAE75";
-  const label = pct > 180 ? "High" : pct > 100 ? "Typical" : "Good";
+  const highThreshold = price && price < 60 ? 200 : 180;
+  const color = pct > highThreshold ? "#E05C5C" : pct > 100 ? "#C9A84C" : "#6BAE75";
+  const label = pct > highThreshold ? "High" : pct > 100 ? "Typical" : "Good";
   return <span style={{ color, fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>{label}</span>;
 }
 
@@ -620,9 +621,11 @@ export default function AskTrevor() {
         ctx.fillText(menuPrice, colX[1], y);
 
         const pct = a.markup_pct;
-        const vLabel = pct == null ? "-" : pct > 180 ? "High" : pct > 100 ? "Typical" : "Good";
+        const wPrice = w.price_bottle || w.price_glass;
+        const shareHighThreshold = wPrice && wPrice < 60 ? 200 : 180;
+        const vLabel = pct == null ? "-" : pct > shareHighThreshold ? "High" : pct > 100 ? "Typical" : "Good";
         ctx.font = "bold 11px monospace";
-        ctx.fillStyle = pct == null ? "#9a8a6a" : pct > 180 ? "#E05C5C" : pct > 100 ? "#C9A84C" : "#6BAE75";
+        ctx.fillStyle = pct == null ? "#9a8a6a" : pct > shareHighThreshold ? "#E05C5C" : pct > 100 ? "#C9A84C" : "#6BAE75";
         ctx.fillText(vLabel, colX[2], y);
 
         ctx.font = "12px Arial";
@@ -952,7 +955,7 @@ export default function AskTrevor() {
                           )}
                         </td>
                         <td style={{ padding: "12px 12px", color: S.text, whiteSpace: "nowrap", fontFamily: "monospace" }}>{menuPrice}</td>
-                        <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} searching={searchingPrices} /></td>
+                        <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}><MarkupBadge pct={w.markup_pct} searching={searchingPrices} price={w.price_bottle || w.price_glass} /></td>
                         <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>{w.quality_stars ? <Stars count={w.quality_stars} /> : "-"}</td>
                         <td className="col-landscape" style={{ padding: "12px 12px", fontSize: "0.68rem", color: S.dim, whiteSpace: "nowrap" }}>{w.vintage_note ? (() => {
                             const vn = w.vintage_note.toLowerCase();
