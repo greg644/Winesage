@@ -71,6 +71,7 @@ export default function AskTrevor() {
   const [chosenWine, setChosenWine] = useState(null);
   const [searchingPrices, setSearchingPrices] = useState(false);
   const [trevorVerdict, setTrevorVerdict] = useState(null);
+  const [verdictExpanded, setVerdictExpanded] = useState(true);
   const [choiceComment, setChoiceComment] = useState(null);
   const choiceTimerRef = useRef(null);
   const restaurantTimerRef = useRef(null);
@@ -318,6 +319,7 @@ export default function AskTrevor() {
         });
       });
       setSearchingPrices(false);
+      setVerdictExpanded(false);
       // Now save to sheets with full data
       analysisDataRef.current = analysisData;
       if (analysisData) saveToSheets(wList, analysisData, wineContextRef._restaurant || "Unknown");
@@ -796,7 +798,7 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setTrevorVerdict(null); }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setTrevorVerdict(null); setVerdictExpanded(true); }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
@@ -827,16 +829,23 @@ export default function AskTrevor() {
             )}
 
             {trevorVerdict && (
-              <div style={{ marginBottom: 16, border: "1px solid #2a2318", background: "#0d0b07", padding: "14px 20px", display: "flex", alignItems: "flex-start", gap: 14 }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#2a2210", border: "1px solid " + S.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>🍷</div>
-                <div>
-                  <div style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: S.dim, fontFamily: "monospace", marginBottom: 6 }}>Trevor's Verdict</div>
-                  <div style={{ fontFamily: "Georgia, serif", fontSize: "0.85rem", color: S.text, lineHeight: 1.7, fontStyle: "italic" }}>
-                    {trevorVerdict.split("**").map((part, j) =>
-                      j % 2 === 1 ? <strong key={j} style={{ color: S.gold, fontStyle: "normal" }}>{part}</strong> : part
-                    )}
-                  </div>
+              <div onClick={() => setVerdictExpanded(v => !v)} style={{ marginBottom: 16, border: "1px solid #2a2318", background: "#0d0b07", padding: "14px 20px", display: "flex", alignItems: verdictExpanded ? "flex-start" : "center", gap: 14, cursor: "pointer" }}>
+                <div style={{ fontSize: "1.2rem", flexShrink: 0 }}>🍷</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: S.gold, fontFamily: "monospace", marginBottom: verdictExpanded ? 6 : 0 }}>Trevor's Verdict</div>
+                  {verdictExpanded ? (
+                    <div style={{ fontFamily: "Georgia, serif", fontSize: "0.85rem", color: S.text, lineHeight: 1.7, fontStyle: "italic" }}>
+                      {trevorVerdict.split("**").map((part, j) =>
+                        j % 2 === 1 ? <strong key={j} style={{ color: S.gold, fontStyle: "normal" }}>{part}</strong> : part
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ fontFamily: "Georgia, serif", fontSize: "0.82rem", color: S.dim, fontStyle: "italic", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {trevorVerdict.substring(0, 60)}...
+                    </div>
+                  )}
                 </div>
+                <div style={{ fontSize: 10, color: S.dim, flexShrink: 0 }}>{verdictExpanded ? "▲" : "▼"}</div>
               </div>
             )}
 
