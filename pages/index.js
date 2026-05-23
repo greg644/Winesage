@@ -497,16 +497,20 @@ export default function AskTrevor() {
       ]);
     });
     try {
+      console.log("Sending to sheets, rows:", rows.length);
       const sheetsRes = await fetch("/api/sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
       });
+      console.log("Sheets response status:", sheetsRes.status);
       const sheetsData = await sheetsRes.json();
+      console.log("Sheets response data:", JSON.stringify(sheetsData));
       if (!sheetsData.success) {
         alert("Sheets error: " + JSON.stringify(sheetsData));
       }
     } catch (e) {
+      console.error("Sheets fetch failed:", e.message);
       alert("Sheets fetch failed: " + e.message);
     }
   }
