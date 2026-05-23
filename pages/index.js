@@ -465,12 +465,12 @@ export default function AskTrevor() {
       const p2 = w2.price_bottle || w2.price_glass;
       const m2 = a2.markup_pct || (a2.retail_price && p2 ? Math.round(((p2 - a2.retail_price) / a2.retail_price) * 100) : null);
       // Sweet Spot
-      if (p2 && a2.quality_stars && m2 && m2 > 0) {
+      if (p2 && p2 > 0 && a2.quality_stars && a2.quality_stars > 0 && m2 && m2 > 0 && isFinite(m2)) {
         const score = (Math.pow(a2.quality_stars, 2) * 10) / (m2 / 100) / Math.pow(p2, 0.4);
-        if (score > ssScore) { ssScore = score; ssIdx = j + 1; }
+        if (isFinite(score) && score > ssScore) { ssScore = score; ssIdx = j + 1; }
       }
       // Best Value
-      if (m2 != null && m2 < loMarkup) { loMarkup = m2; bstValueIdx = j + 1; }
+      if (m2 != null && m2 > 0 && isFinite(m2) && m2 < loMarkup) { loMarkup = m2; bstValueIdx = j + 1; }
       // Best Quality
       if (a2.quality_stars != null && a2.quality_stars > hiQuality) { hiQuality = a2.quality_stars; bstQualityIdx = j + 1; }
     });
@@ -489,7 +489,7 @@ export default function AskTrevor() {
         a.retail_price || "",
         markup != null ? markup + "%" : "",
         a.quality_stars || "",
-        (a.quality_note || "").replace(/,/g, ";").split(" ").slice(0, 3).join(" "),
+        (a.quality_note || "").replace(/,/g, ";").split(" ").slice(0, 3).join(" ").trim(),
         (i + 1) === ssIdx ? "Yes" : "",
         (i + 1) === bstValueIdx ? "Yes" : "",
         (i + 1) === bstQualityIdx ? "Yes" : ""
