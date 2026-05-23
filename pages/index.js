@@ -475,6 +475,7 @@ export default function AskTrevor() {
       if (a2.quality_stars != null && a2.quality_stars > hiQuality) { hiQuality = a2.quality_stars; bstQualityIdx = j + 1; }
     });
 
+    console.log("saveToSheets ssIdx:", ssIdx, "bstValueIdx:", bstValueIdx, "bstQualityIdx:", bstQualityIdx, "wList.length:", wList.length);
     wList.forEach((w, i) => {
       const a = analysisData.find(x => x.index === i + 1) || {};
       const price = w.price_bottle || w.price_glass;
