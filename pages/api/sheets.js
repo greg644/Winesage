@@ -1,17 +1,13 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
   try {
-    const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
-    if (!scriptUrl) return res.status(500).json({ error: 'No GOOGLE_SCRIPT_URL' });
-
+    const scriptUrl = process.env.GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbw7wDJKuS-eJOBYTZnoD-4onOYrA1KTpgS6MxZMfe9qLGROdSuLwcN0Qk6LHoqgjWt_AA/exec";
     const response = await fetch(scriptUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body),
       redirect: 'follow',
     });
-
     const text = await response.text();
     let data;
     try { data = JSON.parse(text); } catch(e) { return res.status(500).json({ error: 'Bad response', raw: text.substring(0, 200) }); }
