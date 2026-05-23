@@ -309,7 +309,15 @@ export default function AskTrevor() {
       try {
         analysisData = JSON.parse(t2.substring(i2s, i2e + 1));
       } catch(e) {
-        const cleaned = t2.substring(i2s, i2e + 1).replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
+        const cleaned = t2.substring(i2s, i2e + 1)
+          .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+          .replace(/,\s*]/g, "]")
+          .replace(/,\s*}/g, "}")
+          .replace(/"retail_price":\s*([\d,]+)/g, (m, n) => '"retail_price":' + n.replace(/,/g, ""))
+          .replace(/"markup_pct":\s*([\d,]+)/g, (m, n) => '"markup_pct":' + n.replace(/,/g, ""))
+          .replace(/:\s*N\/A/gi, ": null")
+          .replace(/:\s*"N\/A"/gi, ": null")
+          .replace(/:\s*undefined/gi, ": null");
         analysisData = JSON.parse(cleaned);
       }
       setAnalysis(prev => {
