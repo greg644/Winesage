@@ -482,8 +482,6 @@ export default function AskTrevor() {
       // Best Quality
       if (a2.quality_stars != null && a2.quality_stars > hiQuality) { hiQuality = a2.quality_stars; bstQualityIdx = j + 1; }
     });
-
-    console.log("saveToSheets ssIdx:", ssIdx, "bstValueIdx:", bstValueIdx, "bstQualityIdx:", bstQualityIdx, "wList.length:", wList.length);
     wList.forEach((w, i) => {
       const a = analysisData.find(x => x.index === i + 1) || {};
       const price = w.price_bottle || w.price_glass;
@@ -505,15 +503,12 @@ export default function AskTrevor() {
       ]);
     });
     try {
-      console.log("Sending to sheets, rows:", rows.length);
       const sheetsRes = await fetch("/api/sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
       });
-      console.log("Sheets response status:", sheetsRes.status);
       const sheetsData = await sheetsRes.json();
-      console.log("Sheets response data:", JSON.stringify(sheetsData));
       if (!sheetsData.success) {
         alert("Sheets error: " + JSON.stringify(sheetsData));
       }
