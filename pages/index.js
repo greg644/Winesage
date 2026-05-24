@@ -537,12 +537,6 @@ export default function AskTrevor() {
     analysis.forEach(a => { if (a.markup_pct != null && a.markup_pct < lo) { lo = a.markup_pct; bestIdx = a.index; } });
   }
 
-  let bestQualityIdx = null;
-  if (analysis) {
-    let hi = 0;
-    analysis.forEach(a => { if (a.quality_stars != null && a.quality_stars > hi && a.index !== hiddenGemIdx) { hi = a.quality_stars; bestQualityIdx = a.index; } });
-  }
-
   let hiddenGemIdx = null;
   let hiddenGemScore = -Infinity;
   let hiddenGemNote = "";
@@ -561,6 +555,12 @@ export default function AskTrevor() {
         hiddenGemNote = a.quality_note || "";
       }
     });
+  }
+
+  let bestQualityIdx = null;
+  if (analysis) {
+    let hi = 0;
+    analysis.forEach(a => { if (a.quality_stars != null && a.quality_stars > hi && a.index !== hiddenGemIdx) { hi = a.quality_stars; bestQualityIdx = a.index; } });
   }
 
   async function shareAnalysis() {
