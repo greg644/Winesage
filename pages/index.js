@@ -354,7 +354,7 @@ export default function AskTrevor() {
         return updated;
       });
 
-      let ssIdx = null, ssScore = -Infinity;
+      let hgIdx = null, hgScore = -Infinity;
       if (analysisData) {
         wList.forEach((w, i) => {
           const a = analysisData.find(x => x.index === i + 1) || {};
@@ -362,15 +362,15 @@ export default function AskTrevor() {
           const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
           if (!price || !a.quality_stars || !markup || markup <= 0) return;
           const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
-          if (score > ssScore) { ssScore = score; ssIdx = i; }
+          if (score > hgScore) { hgScore = score; hgIdx = i; }
         });
       }
-      const ssWine = ssIdx !== null ? wList[ssIdx] : null;
-      const ssGreeting = ssWine ? " Today's sweet spot is the " + ssWine.name + " — I'd start there." : "";
+      const hgWine = hgIdx !== null ? wList[hgIdx] : null;
+      const hgGreeting = hgWine ? " Today's hidden gem is the " + hgWine.name + " — I'd start there." : "";
 
       setMessages([{
         role: "assistant",
-        content: getGreeting() + ". I have full sight of today's wine list — " + wList.length + " bottles, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + ssGreeting,
+        content: getGreeting() + ". I have full sight of today's wine list — " + wList.length + " bottles, quality assessments. Ask me anything: best value picks, food pairings, what to avoid, or recommendations on any budget." + hgGreeting,
       }]);
 
     } catch (err) {
@@ -463,8 +463,8 @@ export default function AskTrevor() {
     const date = new Date().toLocaleDateString("en-GB");
     const rows = [];
 
-    // Pre-calculate Sweet Spot, Best Value and Best Quality across full list
-    let ssIdx = null, ssScore = -Infinity;
+    // Pre-calculate Hidden Gem, Best Value and Best Quality across full list
+    let hgIdx = null, hgScore = -Infinity;
     let bstValueIdx = null, loMarkup = Infinity;
     let bstQualityIdx = null, hiQuality = 0;
 
@@ -472,10 +472,10 @@ export default function AskTrevor() {
       const a2 = analysisData.find(x => x.index === j + 1) || {};
       const p2 = w2.price_bottle || w2.price_glass;
       const m2 = a2.markup_pct || (a2.retail_price && p2 ? Math.round(((p2 - a2.retail_price) / a2.retail_price) * 100) : null);
-      // Sweet Spot
+      // Hidden Gem
       if (p2 && p2 > 0 && a2.quality_stars && a2.quality_stars > 0 && m2 && m2 > 0 && isFinite(m2)) {
         const score = (Math.pow(a2.quality_stars, 2) * 10) / (m2 / 100) / Math.pow(p2, 0.4);
-        if (isFinite(score) && score > ssScore) { ssScore = score; ssIdx = j + 1; }
+        if (isFinite(score) && score > hgScore) { hgScore = score; hgIdx = j + 1; }
       }
       // Best Value
       if (m2 != null && m2 > 0 && isFinite(m2) && m2 < loMarkup) { loMarkup = m2; bstValueIdx = j + 1; }
@@ -497,7 +497,7 @@ export default function AskTrevor() {
         markup != null ? markup + "%" : "",
         a.quality_stars || "",
         (a.quality_note || "").replace(/,/g, ";").split(" ").slice(0, 3).join(" ").trim(),
-        (i + 1) === ssIdx ? "Yes" : "",
+        (i + 1) === hgIdx ? "Yes" : "",
         (i + 1) === bstValueIdx ? "Yes" : "",
         (i + 1) === bstQualityIdx ? "Yes" : ""
       ]);
@@ -540,12 +540,12 @@ export default function AskTrevor() {
   let bestQualityIdx = null;
   if (analysis) {
     let hi = 0;
-    analysis.forEach(a => { if (a.quality_stars != null && a.quality_stars > hi) { hi = a.quality_stars; bestQualityIdx = a.index; } });
+    analysis.forEach(a => { if (a.quality_stars != null && a.quality_stars > hi && a.index !== hiddenGemIdx) { hi = a.quality_stars; bestQualityIdx = a.index; } });
   }
 
-  let sweetSpotIdx = null;
-  let sweetSpotScore = -Infinity;
-  let sweetSpotNote = "";
+  let hiddenGemIdx = null;
+  let hiddenGemScore = -Infinity;
+  let hiddenGemNote = "";
   if (wines && analysis) {
     wines.forEach((w, i) => {
       const a = analysis.find(x => x.index === i + 1) || {};
@@ -555,10 +555,10 @@ export default function AskTrevor() {
       if (!a.quality_stars || a.quality_stars < 1) return;
       if (!markup || markup <= 0) return;
       const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
-      if (score > sweetSpotScore) {
-        sweetSpotScore = score;
-        sweetSpotIdx = i + 1;
-        sweetSpotNote = a.quality_note || "";
+      if (score > hiddenGemScore) {
+        hiddenGemScore = score;
+        hiddenGemIdx = i + 1;
+        hiddenGemNote = a.quality_note || "";
       }
     });
   }
@@ -603,7 +603,7 @@ export default function AskTrevor() {
       wines.forEach((w, i) => {
         const a = (analysis || []).find(x => x.index === i + 1) || {};
         const y = headerHeight + (i + 1) * rowHeight - 8;
-        const isSweet = (i + 1) === sweetSpotIdx;
+        const isSweet = (i + 1) === hiddenGemIdx;
         const isBest = (i + 1) === bestIdx;
         const isBQ = (i + 1) === bestQualityIdx;
 
@@ -823,16 +823,16 @@ export default function AskTrevor() {
                 SEARCHING RETAIL PRICES...
               </div>
             )}
-            {sweetSpotIdx && wines && (
+            {hiddenGemIdx && wines && (
               <div style={{ marginBottom: 24, border: "1px solid " + S.gold, background: "rgba(201,168,76,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
                 <div style={{ fontSize: "1.6rem" }}>🎯</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: S.gold, fontFamily: "monospace", marginBottom: 4 }}>Trevor's Sweet Spot</div>
+                  <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: S.gold, fontFamily: "monospace", marginBottom: 4 }}>Trevor's Hidden Gem</div>
                   <div style={{ fontFamily: "Georgia, serif", fontSize: "1.05rem", color: S.text, fontWeight: 600 }}>
-                    {wines[sweetSpotIdx - 1]?.name}
+                    {wines[hiddenGemIdx - 1]?.name}
                   </div>
                   <div style={{ fontSize: "0.72rem", color: S.dim, marginTop: 2 }}>
-                    {wines[sweetSpotIdx - 1]?.origin} · £{wines[sweetSpotIdx - 1]?.price_bottle || wines[sweetSpotIdx - 1]?.price_glass} · {sweetSpotNote}
+                    {wines[hiddenGemIdx - 1]?.origin} · £{wines[hiddenGemIdx - 1]?.price_bottle || wines[hiddenGemIdx - 1]?.price_glass} · {hiddenGemNote}
                   </div>
                 </div>
               </div>
@@ -939,7 +939,7 @@ export default function AskTrevor() {
                 <tbody>
                   {filtered.map((w, i) => {
                     const isBest = w.index === bestIdx;
-                    const isSweet = w.index === sweetSpotIdx;
+                    const isSweet = w.index === hiddenGemIdx;
                     const isBestQuality = w.index === bestQualityIdx;
                     const wCurrency = w.currency || "GBP";
                     const wSymbol = wCurrency === "DKK" ? "kr" : wCurrency === "EUR" ? "€" : wCurrency === "USD" ? "$" : wCurrency === "NOK" ? "kr" : wCurrency === "SEK" ? "kr" : wCurrency === "SGD" ? "S$" : wCurrency === "AUD" ? "A$" : wCurrency === "CHF" ? "Fr" : wCurrency === "JPY" ? "¥" : wCurrency === "AED" ? "AED" : "£";
@@ -951,7 +951,7 @@ export default function AskTrevor() {
                           <div className="wine-name" style={{ fontFamily: "Georgia, serif", fontSize: "0.95rem", color: isSweet ? "#6BAE75" : isBest ? S.gold : S.text, fontWeight: 600 }}>
                             {w.name}
                             {isBest && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(201,168,76,0.15)", color: S.gold, border: "1px solid rgba(201,168,76,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Best Value</span>}
-                            {isSweet && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(107,174,117,0.15)", color: "#6BAE75", border: "1px solid rgba(107,174,117,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Sweet Spot</span>}
+                            {isSweet && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(107,174,117,0.15)", color: "#6BAE75", border: "1px solid rgba(107,174,117,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Hidden Gem</span>}
                             {isBestQuality && <span style={{ fontSize: "0.5rem", letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(100,149,237,0.15)", color: "#6495ED", border: "1px solid rgba(100,149,237,0.3)", padding: "2px 5px", marginLeft: 8, verticalAlign: "middle", fontFamily: "monospace" }}>Best Quality</span>}
                           </div>
                           <div style={{ fontSize: "0.67rem", color: S.dim }}>{w.origin}</div>
