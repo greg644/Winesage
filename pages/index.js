@@ -468,19 +468,23 @@ export default function AskTrevor() {
     let bstValueIdx = null, loMarkup = Infinity;
     let bstQualityIdx = null, hiQuality = 0;
 
+    // Calculate top 25% price threshold
+    const sheetPrices = wList.map(w => w.price_bottle || w.price_glass).filter(p => p > 0).sort((a, b) => a - b);
+    const sheetCutoff = sheetPrices[Math.floor(sheetPrices.length * 0.75)] || Infinity;
+
     wList.forEach((w2, j) => {
       const a2 = analysisData.find(x => x.index === j + 1) || {};
       const p2 = w2.price_bottle || w2.price_glass;
       const m2 = a2.markup_pct || (a2.retail_price && p2 ? Math.round(((p2 - a2.retail_price) / a2.retail_price) * 100) : null);
-      // Hidden Gem
-      if (p2 && p2 > 0 && a2.quality_stars && a2.quality_stars > 0 && m2 && m2 > 0 && isFinite(m2)) {
+      // Hidden Gem — exclude top 25% most expensive
+      if (p2 && p2 > 0 && p2 <= sheetCutoff && a2.quality_stars && a2.quality_stars > 0 && m2 && m2 > 0 && isFinite(m2)) {
         const score = (Math.pow(a2.quality_stars, 2) * 10) / (m2 / 100) / Math.pow(p2, 0.4);
         if (isFinite(score) && score > hgScore) { hgScore = score; hgIdx = j + 1; }
       }
       // Best Value
       if (m2 != null && m2 > 0 && isFinite(m2) && m2 < loMarkup) { loMarkup = m2; bstValueIdx = j + 1; }
       // Best Quality
-      if (a2.quality_stars != null && a2.quality_stars > hiQuality) { hiQuality = a2.quality_stars; bstQualityIdx = j + 1; }
+      if (a2.quality_stars != null && a2.quality_stars > hiQuality && (j + 1) !== hgIdx) { hiQuality = a2.quality_stars; bstQualityIdx = j + 1; }
     });
     wList.forEach((w, i) => {
       const a = analysisData.find(x => x.index === i + 1) || {};
@@ -541,11 +545,15 @@ export default function AskTrevor() {
   let hiddenGemScore = -Infinity;
   let hiddenGemNote = "";
   if (wines && analysis) {
+    // Calculate top 25% price threshold to exclude most expensive wines
+    const prices = wines.map(w => w.price_bottle || w.price_glass).filter(p => p > 0).sort((a, b) => a - b);
+    const cutoff = prices[Math.floor(prices.length * 0.75)] || Infinity;
     wines.forEach((w, i) => {
       const a = analysis.find(x => x.index === i + 1) || {};
       const price = w.price_bottle || w.price_glass;
       const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
       if (!price) return;
+      if (price > cutoff) return; // exclude top 25% most expensive
       if (!a.quality_stars || a.quality_stars < 1) return;
       if (!markup || markup <= 0) return;
       const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
@@ -762,7 +770,17 @@ export default function AskTrevor() {
         {analyseStatus && (
           <div style={{ marginTop: 20, textAlign: "center", fontSize: "0.75rem", color: S.dim, fontFamily: "monospace" }}>
             {analyseStatus.startsWith("Error") ? (
-              <span style={{ color: "#E05C5C" }}>{analyseStatus}</span>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "2rem", marginBottom: 8 }}>📷</div>
+                <div style={{ color: "#E05C5C", marginBottom: 6 }}>
+                  {analyseStatus.includes("could not read") || analyseStatus.includes("No wines") 
+                    ? analyseStatus.replace("Error: ", "") 
+                    : "Something went wrong — please try again."}
+                </div>
+                <div style={{ fontSize: "0.7rem", color: S.dim, marginTop: 8 }}>
+                  Tips: good lighting, hold steady, avoid glare
+                </div>
+              </div>
             ) : (
               <span>Analysing... {analyseStatus}</span>
             )}
