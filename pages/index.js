@@ -773,13 +773,13 @@ export default function AskTrevor() {
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "2rem", marginBottom: 8 }}>📷</div>
                 <div style={{ color: "#E05C5C", marginBottom: 6 }}>
-                  {analyseStatus.includes("could not read") || analyseStatus.includes("No wines") 
-                    ? analyseStatus.replace("Error: ", "") 
-                    : "Something went wrong — please try again."}
+                  {analyseStatus.replace("Error: ", "")}
                 </div>
-                <div style={{ fontSize: "0.7rem", color: S.dim, marginTop: 8 }}>
-                  Tips: good lighting, hold steady, avoid glare
-                </div>
+                {(analyseStatus.includes("could not read") || analyseStatus.includes("No wines")) && (
+                  <div style={{ fontSize: "0.7rem", color: S.dim, marginTop: 8 }}>
+                    Tips: good lighting, hold steady, avoid glare
+                  </div>
+                )}
               </div>
             ) : (
               <span>Analysing... {analyseStatus}</span>
