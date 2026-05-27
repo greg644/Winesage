@@ -16,6 +16,9 @@ async function callClaude(body) {
   } catch(e) {
     throw new Error("Server error " + res.status + ": " + text.substring(0, 150));
   }
+  if (res.status === 429 || data.error === "rate_limited") {
+    throw new Error("RATE_LIMITED:" + (data.message || "Daily limit reached. Please come back tomorrow."));
+  }
   if (data.error) throw new Error("API error: " + JSON.stringify(data.error));
   if (!data.content) throw new Error("No content: " + JSON.stringify(data).substring(0, 200));
   return data;
@@ -358,7 +361,8 @@ export default function AskTrevor() {
       if (analysisData) {
         wList.forEach((w, i) => {
           const a = analysisData.find(x => x.index === i + 1) || {};
-          const price = w.price_bottle || w.price_glass;
+          const bottleEquiv = w.price_bottle || (w.price_glass ? (w.glass_size === 125 ? Math.round(w.price_glass * 6) : w.glass_size === 250 ? Math.round(w.price_glass * 3) : Math.round(w.price_glass * 4.3)) : null);
+          const price = bottleEquiv;
           const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
           if (!price || !a.quality_stars || !markup || markup <= 0) return;
           const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
@@ -474,7 +478,8 @@ export default function AskTrevor() {
 
     wList.forEach((w2, j) => {
       const a2 = analysisData.find(x => x.index === j + 1) || {};
-      const p2 = w2.price_bottle || w2.price_glass;
+      const p2bottleEquiv = w2.price_bottle || (w2.price_glass ? (w2.glass_size === 125 ? Math.round(w2.price_glass * 6) : w2.glass_size === 250 ? Math.round(w2.price_glass * 3) : Math.round(w2.price_glass * 4.3)) : null);
+      const p2 = p2bottleEquiv;
       const m2 = a2.markup_pct || (a2.retail_price && p2 ? Math.round(((p2 - a2.retail_price) / a2.retail_price) * 100) : null);
       // Hidden Gem — exclude top 25% most expensive
       if (p2 && p2 > 0 && p2 <= sheetCutoff && a2.quality_stars && a2.quality_stars > 0 && m2 && m2 > 0 && isFinite(m2)) {
@@ -769,11 +774,13 @@ export default function AskTrevor() {
 
         {analyseStatus && (
           <div style={{ marginTop: 20, textAlign: "center", fontSize: "0.75rem", color: S.dim, fontFamily: "monospace" }}>
-            {analyseStatus.startsWith("Error") ? (
+            {(analyseStatus.startsWith("Error") || analyseStatus.startsWith("RATE_LIMITED")) ? (
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "2rem", marginBottom: 8 }}>📷</div>
-                <div style={{ color: "#E05C5C", marginBottom: 6 }}>
-                  {analyseStatus.replace("Error: ", "")}
+                <div style={{ fontSize: "2rem", marginBottom: 8 }}>{analyseStatus.startsWith("RATE_LIMITED") ? "🍷" : "📷"}</div>
+                <div style={{ color: analyseStatus.startsWith("RATE_LIMITED") ? S.gold : "#E05C5C", marginBottom: 6 }}>
+                  {analyseStatus.startsWith("RATE_LIMITED") 
+                    ? analyseStatus.replace("RATE_LIMITED:", "")
+                    : analyseStatus.replace("Error: ", "")}
                 </div>
                 {(analyseStatus.includes("could not read") || analyseStatus.includes("No wines")) && (
                   <div style={{ fontSize: "0.7rem", color: S.dim, marginTop: 8 }}>
