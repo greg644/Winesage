@@ -87,15 +87,13 @@ export default function AskTrevor() {
   const wineContextRef = useRef("");
   const swWaitingRef = useRef(null);
   const analysisDataRef = useRef(null);
-  const wListRef = useRef([]); // holds the waiting service worker
+  const wListRef = useRef([]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Version check + service worker update detection
   useEffect(() => {
-    // Check version.json for update banner using localStorage
     fetch("/version.json?t=" + Date.now())
       .then(r => r.json())
       .then(data => {
@@ -109,7 +107,6 @@ export default function AskTrevor() {
       })
       .catch(() => {});
 
-    // Listen for a waiting service worker (next-pwa with skipWaiting: false)
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.ready.then(reg => {
         if (reg.waiting) {
@@ -128,7 +125,6 @@ export default function AskTrevor() {
         });
       });
 
-      // When the new SW takes control, reload after short delay
       let refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (!refreshing) {
@@ -183,7 +179,7 @@ export default function AskTrevor() {
     setAnalyseStatus("Reading wine list...");
     try {
       const d1 = await callClaude({
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 4000,
         messages: [{
           role: "user",
@@ -215,7 +211,7 @@ export default function AskTrevor() {
       setAnalyseStatus("Found " + wList.length + " wines - rating quality...");
       const quickList = wList.map((w, i) => (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ")").join("\n");
       const dQuick = await callClaude({
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 3000,
         messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{index:1,quality_stars:4,quality_note:short phrase,retail_price:null,markup_pct:null}]. Wines: " + quickList + quickList }]
       });
@@ -232,10 +228,9 @@ export default function AskTrevor() {
         console.error("Phase 1 no JSON found. Raw response:", tQuick.substring(0, 300));
       }
 
-      // Phase 1b: Get Trevor's overall verdict on the list
       try {
         const dVerdict = await callClaude({
-          model: "claude-sonnet-4-6",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 150,
           system: "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. Be concise, opinionated and dry. Maximum 2 sentences.",
           messages: [{ role: "user", content: "Give your overall verdict on this wine list in 2 sentences — comment on the quality, value, and anything that stands out (good or bad). Wines: " + quickList }]
@@ -250,7 +245,8 @@ export default function AskTrevor() {
       setAnalyseStatus(null);
       if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
       choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
-      setTimeout(() => {
+      if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current);
+      restaurantTimerRef.current = setTimeout(() => {
         const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
         wineContextRef._restaurant = restaurant;
       }, 500);
@@ -332,7 +328,6 @@ export default function AskTrevor() {
       });
       setSearchingPrices(false);
       setVerdictExpanded(false);
-      // Now save to sheets with full data
       analysisDataRef.current = analysisData;
       if (analysisData) saveToSheets(wList, analysisData, wineContextRef._restaurant || "Unknown");
       } catch(phase2Err) {
@@ -378,7 +373,11 @@ export default function AskTrevor() {
       }]);
 
     } catch (err) {
-      setAnalyseStatus("Error: " + (err.message || "Something went wrong."));
+      if (err.message.startsWith("RATE_LIMITED:")) {
+        setAnalyseStatus("RATE_LIMITED:" + err.message.replace("RATE_LIMITED:", ""));
+      } else {
+        setAnalyseStatus("Error: " + (err.message || "Something went wrong."));
+      }
       setSearchingPrices(false);
     } finally {
       setAnalysing(false);
@@ -394,11 +393,11 @@ export default function AskTrevor() {
     setInput("");
     setChatLoading(true);
 
-    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. You speak with dry wit, genuine expertise, and zero tolerance for bad value. You have full sight of today's wine list:\n\n" + wineContextRef.current + "\n\nBe honest about poor value. Celebrate genuine quality. Keep responses concise — 2-4 sentences unless detail is needed. Never be sycophantic.";
+    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. You speak with dry wit, genuine expertise, and zero tolerance for bad value. You have full sight of today's wine list:\n\n" + wineContextRef.current + "\n\nBe honest about poor value. Celebrate genuine quality. Keep responses concise — 2-4 sentences unless detail is needed. Never be sycophantic. IMPORTANT: if you are unenthusiastic about a wine — poor value, mediocre quality, or overpriced — always suggest a better alternative from the list by name. Never leave someone stranded with a bad recommendation.";
 
     try {
       const d = await callClaude({
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 500,
         system: systemPrompt,
         messages: updated.map(m => ({ role: m.role, content: m.content }))
@@ -415,10 +414,10 @@ export default function AskTrevor() {
     if (!foodInput.trim() || pairingLoading) return;
     setPairingLoading(true);
     setPairingResult(null);
-    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. You have full sight of today's wine list:\n\n" + wineContextRef.current + "\n\nBe concise and specific. Recommend one wine from the list only.";
+    const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. You have full sight of today's wine list:\n\n" + wineContextRef.current + "\n\nBe concise and specific. Recommend one wine from the list only. If your recommendation is not ideal, briefly note why and suggest it anyway as the best option available.";
     try {
       const d = await callClaude({
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 200,
         system: systemPrompt,
         messages: [{ role: "user", content: "I am eating " + foodInput.trim() + ". Which wine on this list should I order?" }]
@@ -440,7 +439,7 @@ export default function AskTrevor() {
     const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. Be brief — one sentence of dry wit congratulating or gently teasing the choice. Never be sycophantic.";
     try {
       const d = await callClaude({
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 100,
         system: systemPrompt,
         messages: [{ role: "user", content: "I chose the " + wine.name + " (" + wine.origin + ") at £" + (wine.price_bottle || wine.price_glass) + "." }]
@@ -467,12 +466,10 @@ export default function AskTrevor() {
     const date = new Date().toLocaleDateString("en-GB");
     const rows = [];
 
-    // Pre-calculate Hidden Gem, Best Value and Best Quality across full list
     let hgIdx = null, hgScore = -Infinity;
     let bstValueIdx = null, loMarkup = Infinity;
     let bstQualityIdx = null, hiQuality = 0;
 
-    // Calculate top 25% price threshold
     const sheetPrices = wList.map(w => w.price_bottle || w.price_glass).filter(p => p > 0).sort((a, b) => a - b);
     const sheetCutoff = sheetPrices[Math.floor(sheetPrices.length * 0.75)] || Infinity;
 
@@ -481,14 +478,11 @@ export default function AskTrevor() {
       const p2bottleEquiv = w2.price_bottle || (w2.price_glass ? (w2.glass_size === 125 ? Math.round(w2.price_glass * 6) : w2.glass_size === 250 ? Math.round(w2.price_glass * 3) : Math.round(w2.price_glass * 4.3)) : null);
       const p2 = p2bottleEquiv;
       const m2 = a2.markup_pct || (a2.retail_price && p2 ? Math.round(((p2 - a2.retail_price) / a2.retail_price) * 100) : null);
-      // Hidden Gem — exclude top 25% most expensive
       if (p2 && p2 > 0 && p2 <= sheetCutoff && a2.quality_stars && a2.quality_stars > 0 && m2 && m2 > 0 && isFinite(m2)) {
         const score = (Math.pow(a2.quality_stars, 2) * 10) / (m2 / 100) / Math.pow(p2, 0.4);
         if (isFinite(score) && score > hgScore) { hgScore = score; hgIdx = j + 1; }
       }
-      // Best Value
       if (m2 != null && m2 > 0 && isFinite(m2) && m2 < loMarkup) { loMarkup = m2; bstValueIdx = j + 1; }
-      // Best Quality
       if (a2.quality_stars != null && a2.quality_stars > hiQuality && (j + 1) !== hgIdx) { hiQuality = a2.quality_stars; bstQualityIdx = j + 1; }
     });
     wList.forEach((w, i) => {
@@ -550,7 +544,6 @@ export default function AskTrevor() {
   let hiddenGemScore = -Infinity;
   let hiddenGemNote = "";
   if (wines && analysis) {
-    // Calculate top 25% price threshold to exclude most expensive wines
     const prices = wines.map(w => w.price_bottle || w.price_glass).filter(p => p > 0).sort((a, b) => a - b);
     const cutoff = prices[Math.floor(prices.length * 0.75)] || Infinity;
     wines.forEach((w, i) => {
@@ -558,7 +551,7 @@ export default function AskTrevor() {
       const price = w.price_bottle || w.price_glass;
       const markup = a.markup_pct || (a.retail_price && price ? Math.round(((price - a.retail_price) / a.retail_price) * 100) : null);
       if (!price) return;
-      if (price > cutoff) return; // exclude top 25% most expensive
+      if (price > cutoff) return;
       if (!a.quality_stars || a.quality_stars < 1) return;
       if (!markup || markup <= 0) return;
       const score = (Math.pow(a.quality_stars, 2) * 10) / (markup / 100) / Math.pow(price, 0.4);
@@ -778,7 +771,7 @@ export default function AskTrevor() {
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "2rem", marginBottom: 8 }}>{analyseStatus.startsWith("RATE_LIMITED") ? "🍷" : "📷"}</div>
                 <div style={{ color: analyseStatus.startsWith("RATE_LIMITED") ? S.gold : "#E05C5C", marginBottom: 6 }}>
-                  {analyseStatus.startsWith("RATE_LIMITED") 
+                  {analyseStatus.startsWith("RATE_LIMITED")
                     ? analyseStatus.replace("RATE_LIMITED:", "")
                     : analyseStatus.replace("Error: ", "")}
                 </div>
