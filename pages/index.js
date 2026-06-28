@@ -181,6 +181,7 @@ export default function AskTrevor() {
       const d1 = await callClaude({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 4000,
+        isScanStart: true,
         messages: [{
           role: "user",
           content: [
