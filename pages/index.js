@@ -455,7 +455,7 @@ export default function AskTrevor() {
 
     const date = new Date().toLocaleDateString("en-GB");
     try {
-      await fetch("/api/sheets", {
+      await fetch("https://asktrevor.app/api/sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows: [[date, "CHOSEN", wine.name, wine.origin, wine.category || "", wine.price_bottle || wine.price_glass || "", "", "", "", "", "", ""]] }),
@@ -507,7 +507,7 @@ export default function AskTrevor() {
       ]);
     });
     try {
-      const sheetsRes = await fetch("/api/sheets", {
+      const sheetsRes = await fetch("https://asktrevor.app/api/sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
