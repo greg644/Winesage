@@ -3,6 +3,9 @@ import Head from "next/head";
 
 
 
+// Keep in step with WEB_SEARCH_MAX_USES in pages/api/claude.js
+const SEARCH_BUDGET = 10;
+
 async function callClaude(body) {
   const res = await fetch("/api/claude", {
     method: "POST",
@@ -214,7 +217,7 @@ export default function AskTrevor() {
       const dQuick = await callClaude({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 3000,
-        messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{index:1,quality_stars:4,quality_note:short phrase,retail_price:null,markup_pct:null}]. Wines: " + quickList + quickList }]
+        messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{index:1,quality_stars:4,quality_note:short phrase,retail_price:null,markup_pct:null}]. Wines: " + quickList }]
       });
       const tQuick = (dQuick.content.find(b => b.type === "text")?.text || "").replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
       const iQs = tQuick.indexOf("["); const iQe = tQuick.lastIndexOf("]");
@@ -275,11 +278,12 @@ export default function AskTrevor() {
       try {
       const currencyNote = detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Convert all retail prices to " + detectedCurrency + " using current exchange rates before calculating markup_pct." : "";
       const analysisPrompt = hasPrices
-        ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
+        ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. You have a strict budget of " + SEARCH_BUDGET + " web searches in total, so do not search wine by wine: search by producer, region or retailer page where one query covers several wines, and use your own knowledge for any wine you could not search." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
         : "For each wine below, rate the quality 1-5 and estimate the typical retail price." + currencyNote + " There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
       let analysisText = "";
       let searchMessages = [{ role: "user", content: analysisPrompt }];
-      for (let si = 0; si < 15; si++) {
+      // The server caps searches (max_uses) and restricts domains; this loop only handles continuation.
+      for (let si = 0; si < 4; si++) {
         const sd = await callClaude({
           model: "claude-sonnet-4-6",
           max_tokens: 4000,
@@ -287,6 +291,10 @@ export default function AskTrevor() {
           messages: searchMessages,
         });
         searchMessages.push({ role: "assistant", content: sd.content });
+        if (sd.stop_reason === "pause_turn") {
+          setAnalyseStatus("Searching retail prices... (" + (si + 1) + ")");
+          continue;
+        }
         if (sd.stop_reason === "end_turn") {
           analysisText = sd.content.filter(b => b.type === "text").map(b => b.text).join("");
           break;
