@@ -4,9 +4,9 @@ import Head from "next/head";
 
 
 // ---- Search settings -------------------------------------------------------
-// Model used for the retail price / critic score search call.
-// To test Haiku, change this one line to "claude-haiku-4-5-20251001" and compare the same list.
-const SEARCH_MODEL = "claude-haiku-4-5-20251001";
+// Search settings.
+// The one model used for every call in this file. It must be in ALLOWED_MODELS in pages/api/claude.js.
+const MODEL = "claude-haiku-4-5-20251001";
 // Searches allowed per chunk. Must equal WEB_SEARCH_MAX_USES in pages/api/claude.js.
 const SEARCH_BUDGET = 4;
 // The wine list is split into chunks that are searched in parallel.
@@ -105,7 +105,7 @@ async function searchChunk(prompt, fallback) {
   let text = "";
   for (let si = 0; si < 4; si++) {
     const sd = await callWithRetry({
-      model: SEARCH_MODEL,
+      model: MODEL,
       max_tokens: 4000,
       tools: [{ type: "web_search_20250305", name: "web_search", tier: fallback ? "fallback" : "primary" }],
       messages,
@@ -126,7 +126,7 @@ async function searchChunk(prompt, fallback) {
     // The model replied in prose, or ran out of turns before answering. Log it, then ask once for just the JSON.
     console.log("Search reply had no usable JSON, asking again. Start of reply:", String(text).slice(0, 300));
     messages.push({ role: "user", content: "Now return the JSON array for ALL wines in this batch, with no other text. Where you could not find a UK retail price, give your best estimate in GBP. Start with [ and end with ]." });
-    const fd = await callWithRetry({ model: SEARCH_MODEL, max_tokens: 4000, messages });
+    const fd = await callWithRetry({ model: MODEL, max_tokens: 4000, messages });
     return parseWineArray(fd.content.filter(b => b.type === "text").map(b => b.text).join(""));
   }
 }
@@ -204,6 +204,18 @@ function mergeInto(prev, data) {
   return merged;
 }
 
+// Quick ratings may arrive after the search has already filled in prices. Keep the prices, take the ratings.
+function mergeQuick(prev, quick) {
+  if (!prev) return quick;
+  const merged = prev.map(p => {
+    const q = quick.find(x => x.index === p.index);
+    return q ? { ...p, quality_stars: q.quality_stars, quality_note: q.quality_note } : p;
+  });
+  const seen = new Set(prev.map(p => p.index));
+  quick.forEach(q => { if (!seen.has(q.index)) merged.push(q); });
+  return merged;
+}
+
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -260,6 +272,8 @@ export default function AskTrevor() {
   const [choiceComment, setChoiceComment] = useState(null);
   const choiceTimerRef = useRef(null);
   const restaurantTimerRef = useRef(null);
+  const [restaurantName, setRestaurantName] = useState("");
+  const restaurantRef = useRef("");
   const [foodInput, setFoodInput] = useState("");
   const [pairingResult, setPairingResult] = useState(null);
   const [pairingLoading, setPairingLoading] = useState(false);
@@ -361,7 +375,7 @@ export default function AskTrevor() {
     setAnalyseStatus("Reading wine list...");
     try {
       const d1 = await callClaude({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL,
         max_tokens: 4000,
         isScanStart: true,
         messages: [{
@@ -391,67 +405,12 @@ export default function AskTrevor() {
       const detectedCurrency = wList.find(w => w.currency)?.currency || "GBP";
       const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
 
-      setAnalyseStatus("Found " + wList.length + " wines - rating quality...");
-      const quickList = wList.map((w, i) => (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ")").join("\n");
-      const dQuick = await callClaude({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 3000,
-        messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{\"index\":1,\"quality_stars\":4,\"quality_note\":\"short phrase\",\"retail_price\":null,\"markup_pct\":null}]. Wines: " + quickList }]
-      });
-      const tQuick = (dQuick.content.find(b => b.type === "text")?.text || "").replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
-      const iQs = tQuick.indexOf("["); const iQe = tQuick.lastIndexOf("]");
-      if (iQs !== -1) {
-        try {
-          let quickData = parseWineArray(tQuick);
-          setAnalysis(quickData);
-        } catch(e) {
-          console.error("Phase 1 parse error:", e.message, "Raw:", tQuick.substring(0, 200));
-        }
-      } else {
-        console.error("Phase 1 no JSON found. Raw response:", tQuick.substring(0, 300));
-      }
-
-      try {
-        const dVerdict = await callClaude({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 150,
-          system: "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. Be concise, opinionated and dry. Maximum 2 sentences.",
-          messages: [{ role: "user", content: "Give your overall verdict on this wine list in 2 sentences — comment on the quality, value, and anything that stands out (good or bad). Wines: " + quickList }]
-        });
-        const verdict = dVerdict.content.find(b => b.type === "text")?.text || "";
-        if (verdict) setTrevorVerdict(verdict);
-      } catch(e) {
-        console.error("Verdict error:", e.message);
-      }
-
-      setPhase("main");
-      setAnalyseStatus(null);
-      if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
-      choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
-      if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current);
-      restaurantTimerRef.current = setTimeout(() => {
-        const restaurant = window.prompt("What restaurant are you in?", "") || "Unknown";
-        wineContextRef._restaurant = restaurant;
-      }, 500);
-      const currencySymbol = detectedCurrency === "DKK" ? "kr" : detectedCurrency === "EUR" ? "€" : detectedCurrency === "USD" ? "$" : detectedCurrency === "NOK" ? "kr" : detectedCurrency === "SEK" ? "kr" : detectedCurrency === "SGD" ? "S$" : detectedCurrency === "AUD" ? "A$" : detectedCurrency === "CHF" ? "Fr" : detectedCurrency === "JPY" ? "¥" : detectedCurrency === "AED" ? "AED" : "£";
-      const basicCtx = wList.map((w, i) => {
-        const price = w.price_bottle ? detectedCurrency + w.price_bottle : w.price_glass ? detectedCurrency + w.price_glass + "/glass" : "unknown";
-        return w.name + " (" + w.origin + "): Menu " + price;
-      }).join("\n");
-      wineContextRef.current = basicCtx;
-      setMessages([{ role: "assistant", content: getGreeting() + ". I have full sight of today's wine list — " + wList.length + " wines. Quality ratings are ready. Retail prices are loading. Ask me anything." }]);
-
-      setAnalysing(false);
-
-      if (hasPrices) {
-        setSearchingPrices(true);
-      }
-
+      // Start the price search now, in parallel with the quick ratings and the verdict below.
+      if (hasPrices) setSearchingPrices(true);
       // The search sees names and origins only. Showing it menu prices makes it copy them as retail prices.
       const wineList = wList.map((w, i) => (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ")").join("\n");
 
-      let analysisData;
-      try {
+      const runSearch = async () => {
       const ukPriceRule = " Take retail prices from UK retailers only, as the shelf price in pounds sterling (GBP) for a 75cl bottle including VAT. Ignore prices shown in USD ($), EUR or any other currency and ignore US or EU retailers. If the only price you can find is in another currency, convert it to GBP at the current exchange rate. Never return a dollar or euro figure as if it were pounds. If you cannot find a UK price for a wine, give your best estimate in GBP rather than leaving it out. Set price_basis to \"found\" if retail_price comes from a UK retailer page you read, or \"estimate\" if it is your own estimate. Always finish by returning the JSON array, never an explanation.";
       const currencyNote = ukPriceRule + (detectedCurrency !== "GBP" ? " The wine list prices are in " + detectedCurrency + ". Only after finding the GBP retail price, convert it to " + detectedCurrency + " using current exchange rates, and return retail_price in " + detectedCurrency + "." : "");
       // Search the list in parallel chunks; prices appear as each chunk finishes.
@@ -478,7 +437,7 @@ export default function AskTrevor() {
       if (succeeded.length === 0) {
         throw new Error((results[0].reason && results[0].reason.message) || "Analysis failed. Please try again.");
       }
-      analysisData = succeeded.flat();
+      let analysisData = succeeded.flat();
       setAnalysis(prev => mergeInto(prev, analysisData));
 
       // Second chance: wines the first pass had to estimate get a look on Vivino and Wine-Searcher.
@@ -513,10 +472,66 @@ export default function AskTrevor() {
       }
       const pricedCount = new Set(analysisData.filter(x => x.retail_price != null).map(x => x.index)).size;
       if (pricedCount < wList.length) setPriceNotice("Retail prices found for " + pricedCount + " of " + wList.length + " wines.");
-      setSearchingPrices(false);
-      setVerdictExpanded(false);
-      analysisDataRef.current = analysisData;
-      if (analysisData) saveToSheets(wList, analysisData, wineContextRef._restaurant || "Unknown");
+      return analysisData;
+      };
+      const searchPromise = runSearch();
+      searchPromise.catch(() => {}); // handled where it is awaited below
+
+
+      setAnalyseStatus("Found " + wList.length + " wines - rating quality...");
+      const quickList = wList.map((w, i) => (i + 1) + ". " + (w.name || "").replace(/[^\x20-\x7E]/g, "") + " (" + (w.origin || "").replace(/[^\x20-\x7E]/g, "") + ")").join("\n");
+      const dQuick = await callClaude({
+        model: MODEL,
+        max_tokens: 3000,
+        messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{\"index\":1,\"quality_stars\":4,\"quality_note\":\"short phrase\",\"retail_price\":null,\"markup_pct\":null}]. Wines: " + quickList }]
+      });
+      const tQuick = (dQuick.content.find(b => b.type === "text")?.text || "").replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
+      const iQs = tQuick.indexOf("["); const iQe = tQuick.lastIndexOf("]");
+      if (iQs !== -1) {
+        try {
+          let quickData = parseWineArray(tQuick);
+          setAnalysis(prev => mergeQuick(prev, quickData));
+        } catch(e) {
+          console.error("Phase 1 parse error:", e.message, "Raw:", tQuick.substring(0, 200));
+        }
+      } else {
+        console.error("Phase 1 no JSON found. Raw response:", tQuick.substring(0, 300));
+      }
+
+      try {
+        const dVerdict = await callClaude({
+          model: MODEL,
+          max_tokens: 150,
+          system: "You are Trevor, an acerbic but brilliant sommelier with 25 years of experience. Be concise, opinionated and dry. Maximum 2 sentences.",
+          messages: [{ role: "user", content: "Give your overall verdict on this wine list in 2 sentences — comment on the quality, value, and anything that stands out (good or bad). Wines: " + quickList }]
+        });
+        const verdict = dVerdict.content.find(b => b.type === "text")?.text || "";
+        if (verdict) setTrevorVerdict(verdict);
+      } catch(e) {
+        console.error("Verdict error:", e.message);
+      }
+
+      setPhase("main");
+      setAnalyseStatus(null);
+      if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current);
+      choiceTimerRef.current = setTimeout(() => setShowChoicePrompt(true), 5 * 60 * 1000);
+      const currencySymbol = detectedCurrency === "DKK" ? "kr" : detectedCurrency === "EUR" ? "€" : detectedCurrency === "USD" ? "$" : detectedCurrency === "NOK" ? "kr" : detectedCurrency === "SEK" ? "kr" : detectedCurrency === "SGD" ? "S$" : detectedCurrency === "AUD" ? "A$" : detectedCurrency === "CHF" ? "Fr" : detectedCurrency === "JPY" ? "¥" : detectedCurrency === "AED" ? "AED" : "£";
+      const basicCtx = wList.map((w, i) => {
+        const price = w.price_bottle ? detectedCurrency + w.price_bottle : w.price_glass ? detectedCurrency + w.price_glass + "/glass" : "unknown";
+        return w.name + " (" + w.origin + "): Menu " + price;
+      }).join("\n");
+      wineContextRef.current = basicCtx;
+      setMessages([{ role: "assistant", content: getGreeting() + ". I have full sight of today's wine list — " + wList.length + " wines. Quality ratings are ready. Retail prices are loading. Ask me anything." }]);
+
+      setAnalysing(false);
+
+      let analysisData;
+      try {
+        analysisData = await searchPromise;
+        setSearchingPrices(false);
+        setVerdictExpanded(false);
+        analysisDataRef.current = analysisData;
+        if (analysisData) saveToSheets(wList, analysisData, restaurantRef.current.trim() || "Unknown");
       } catch(phase2Err) {
         console.error('Phase 2 error:', phase2Err.message);
         setSearchingPrices(false);
@@ -584,7 +599,7 @@ export default function AskTrevor() {
 
     try {
       const d = await callClaude({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL,
         max_tokens: 500,
         system: systemPrompt,
         messages: updated.map(m => ({ role: m.role, content: m.content }))
@@ -604,7 +619,7 @@ export default function AskTrevor() {
     const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. You have full sight of today's wine list:\n\n" + wineContextRef.current + "\n\nBe concise and specific. Recommend one wine from the list only. If your recommendation is not ideal, briefly note why and suggest it anyway as the best option available.";
     try {
       const d = await callClaude({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL,
         max_tokens: 200,
         system: systemPrompt,
         messages: [{ role: "user", content: "I am eating " + foodInput.trim() + ". Which wine on this list should I order?" }]
@@ -626,7 +641,7 @@ export default function AskTrevor() {
     const systemPrompt = "You are Trevor, an acerbic but brilliant sommelier. Be brief — one sentence of dry wit congratulating or gently teasing the choice. Never be sycophantic.";
     try {
       const d = await callClaude({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL,
         max_tokens: 100,
         system: systemPrompt,
         messages: [{ role: "user", content: "I chose the " + wine.name + " (" + wine.origin + ") at £" + (wine.price_bottle || wine.price_glass) + "." }]
@@ -686,7 +701,7 @@ export default function AskTrevor() {
         a.retail_price || "",
         markup != null ? markup + "%" : "",
         a.quality_stars || "",
-        (a.quality_note || "").replace(/,/g, ";").split(" ").slice(0, 3).join(" ").trim(),
+        (a.quality_note || "").replace(/,/g, ";").trim().slice(0, 150),
         (i + 1) === hgIdx ? "Yes" : "",
         (i + 1) === bstValueIdx ? "Yes" : "",
         (i + 1) === bstQualityIdx ? "Yes" : ""
@@ -700,11 +715,10 @@ export default function AskTrevor() {
       });
       const sheetsData = await sheetsRes.json();
       if (!sheetsData.success) {
-        alert("Sheets error: " + JSON.stringify(sheetsData));
+        console.error("Sheets error:", JSON.stringify(sheetsData));
       }
     } catch (e) {
       console.error("Sheets fetch failed:", e.message);
-      alert("Sheets fetch failed: " + e.message);
     }
   }
 
@@ -1013,7 +1027,7 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setPriceNotice(null); setTrevorVerdict(null); setVerdictExpanded(true); }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setPriceNotice(null); setTrevorVerdict(null); setVerdictExpanded(true); setRestaurantName(""); restaurantRef.current = ""; }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
@@ -1022,6 +1036,14 @@ export default function AskTrevor() {
 
         {activeTab === "list" && (
           <div style={{ padding: "20px 24px" }}>
+            <input
+              type="text"
+              value={restaurantName}
+              onChange={e => { setRestaurantName(e.target.value); restaurantRef.current = e.target.value; }}
+              placeholder="Restaurant name (optional, for your log)"
+              maxLength={60}
+              style={{ width: "100%", boxSizing: "border-box", marginBottom: 12, padding: "8px 14px", background: "transparent", border: "1px solid " + S.border, color: S.text, fontFamily: "monospace", fontSize: 12, outline: "none" }}
+            />
             {searchingPrices && (
               <div style={{ marginBottom: 12, padding: "8px 14px", background: "#1a1408", border: "0.5px solid #2a2010", fontSize: 11, fontFamily: "monospace", color: "#5a4f3a", letterSpacing: "0.1em", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#c9a84c", opacity: 0.6, animation: "trevorPulse 1.2s ease infinite" }} />
