@@ -5,10 +5,10 @@
 
 // ---- Limits you can tune -------------------------------------------------
 const DAILY_SCAN_LIMIT = 10;        // new wine-list scans (requests containing an image) per IP per day
-const DAILY_SEARCH_LIMIT = 40;      // requests that use web search, per IP per day
+const DAILY_SEARCH_LIMIT = 80;      // requests that use web search, per IP per day (a scan makes up to ~4)
 const DAILY_REQUEST_LIMIT = 250;    // all requests (chat included), per IP per day
 const MAX_TOKENS_CAP = 4000;        // upper bound on max_tokens for any request
-const WEB_SEARCH_MAX_USES = 10;     // hard cap on searches inside one API request
+const WEB_SEARCH_MAX_USES = 4;      // hard cap on searches inside one API request (the app sends one request per chunk of ~14 wines)
 const MAX_MESSAGES = 40;            // sanity cap on conversation length
 
 // Only these models can be called through the proxy.
@@ -158,6 +158,8 @@ export default async function handler(req, res) {
       body: JSON.stringify(body),
     });
     const data = await response.json();
+    const retryAfter = response.headers.get('retry-after');
+    if (retryAfter) res.setHeader('retry-after', retryAfter);
     res.status(response.status).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
