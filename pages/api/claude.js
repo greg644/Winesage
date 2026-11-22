@@ -35,6 +35,8 @@ const SEARCH_ALLOWED_DOMAINS = [
   'winespectator.com',
   'robertparker.com',
 ];
+// Second-chance sources, used only when the page asks for tier "fallback" (prices the first pass could not find).
+const FALLBACK_ALLOWED_DOMAINS = ['vivino.com', 'wine-searcher.com'];
 // --------------------------------------------------------------------------
 
 function getIp(req) {
@@ -99,12 +101,13 @@ export default async function handler(req, res) {
       return reject(res, 400, 'bad_request', 'Tool not allowed.');
     }
     usesSearch = true;
+    const isFallback = input.tools.some((t) => t && t.tier === 'fallback');
     body.tools = [
       {
         type: 'web_search_20250305',
         name: 'web_search',
         max_uses: WEB_SEARCH_MAX_USES,
-        allowed_domains: SEARCH_ALLOWED_DOMAINS,
+        allowed_domains: isFallback ? FALLBACK_ALLOWED_DOMAINS : SEARCH_ALLOWED_DOMAINS,
       },
     ];
   }
