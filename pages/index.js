@@ -6,7 +6,7 @@ import Head from "next/head";
 // ---- Search settings -------------------------------------------------------
 // Model used for the retail price / critic score search call.
 // To test Haiku, change this one line to "claude-haiku-4-5-20251001" and compare the same list.
-const SEARCH_MODEL = "claude-sonnet-4-6";
+const SEARCH_MODEL = "claude-haiku-4-5-20251001";
 // Searches allowed per chunk. Must equal WEB_SEARCH_MAX_USES in pages/api/claude.js.
 const SEARCH_BUDGET = 4;
 // The wine list is split into chunks that are searched in parallel.
