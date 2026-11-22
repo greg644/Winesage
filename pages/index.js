@@ -116,6 +116,25 @@ async function searchChunk(prompt) {
   return parseWineArray(text);
 }
 
+// Number a chunk's lines 1..n locally, so the model never has to keep global numbers.
+function numberLocally(lines) {
+  return lines.map((l, i) => (i + 1) + ". " + l.replace(/^\d+\.\s*/, ""));
+}
+
+// Convert a chunk's returned indices to positions in the full list.
+// Accepts local numbering (1..count), global numbering (offset+1..offset+count),
+// and falls back to the order of the entries if the model used neither.
+function toGlobalIndex(data, offset, count) {
+  return data.map((a, pos) => {
+    const idx = parseInt(a.index, 10);
+    let g;
+    if (idx >= 1 && idx <= count) g = offset + idx;
+    else if (idx > offset && idx <= offset + count) g = idx;
+    else g = offset + pos + 1;
+    return { ...a, index: g };
+  });
+}
+
 // Merge search results into the existing analysis (keeps the quick quality ratings).
 function mergeInto(prev, data) {
   if (!prev) return data;
@@ -178,6 +197,7 @@ export default function AskTrevor() {
   const [showChoicePrompt, setShowChoicePrompt] = useState(false);
   const [chosenWine, setChosenWine] = useState(null);
   const [searchingPrices, setSearchingPrices] = useState(false);
+  const [priceNotice, setPriceNotice] = useState(null);
   const [trevorVerdict, setTrevorVerdict] = useState(null);
   const [verdictExpanded, setVerdictExpanded] = useState(true);
   const [choiceComment, setChoiceComment] = useState(null);
@@ -280,6 +300,7 @@ export default function AskTrevor() {
   async function analyse() {
     if (!img64) return;
     setAnalysing(true);
+    setPriceNotice(null);
     setAnalyseStatus("Reading wine list...");
     try {
       const d1 = await callClaude({
@@ -380,8 +401,20 @@ export default function AskTrevor() {
       const currencyNote = detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Convert all retail prices to " + detectedCurrency + " using current exchange rates before calculating markup_pct." : "";
       // Search the list in parallel chunks; prices appear as each chunk finishes.
       const chunks = splitIntoChunks(wineList.split("\n"));
-      const results = await Promise.allSettled(chunks.map(async chunk => {
-        const data = await searchChunk(buildSearchPrompt(chunk.join("\n"), hasPrices, currencyNote));
+      let chunkOffset = 0;
+      const jobs = chunks.map(chunk => { const job = { chunk, offset: chunkOffset }; chunkOffset += chunk.length; return job; });
+      const results = await Promise.allSettled(jobs.map(async ({ chunk, offset }) => {
+        const prompt = buildSearchPrompt(numberLocally(chunk).join("\n"), hasPrices, currencyNote);
+        let data;
+        try {
+          data = await searchChunk(prompt);
+        } catch (e) {
+          if (String(e.message).startsWith("RATE_LIMITED")) throw e;
+          console.error("Search chunk failed, retrying once:", e.message);
+          data = await searchChunk(prompt);
+        }
+        console.log("Search chunk: asked for " + chunk.length + " wines, got " + data.length);
+        data = toGlobalIndex(data, offset, chunk.length);
         setAnalysis(prev => mergeInto(prev, data));
         return data;
       }));
@@ -392,6 +425,8 @@ export default function AskTrevor() {
       }
       analysisData = succeeded.flat();
       setAnalysis(prev => mergeInto(prev, analysisData));
+      const pricedCount = new Set(analysisData.filter(x => x.retail_price != null).map(x => x.index)).size;
+      if (pricedCount < wList.length) setPriceNotice("Retail prices found for " + pricedCount + " of " + wList.length + " wines.");
       setSearchingPrices(false);
       setVerdictExpanded(false);
       analysisDataRef.current = analysisData;
@@ -892,7 +927,7 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setTrevorVerdict(null); setVerdictExpanded(true); }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setPriceNotice(null); setTrevorVerdict(null); setVerdictExpanded(true); }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
@@ -905,6 +940,11 @@ export default function AskTrevor() {
               <div style={{ marginBottom: 12, padding: "8px 14px", background: "#1a1408", border: "0.5px solid #2a2010", fontSize: 11, fontFamily: "monospace", color: "#5a4f3a", letterSpacing: "0.1em", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#c9a84c", opacity: 0.6, animation: "trevorPulse 1.2s ease infinite" }} />
                 SEARCHING RETAIL PRICES...
+              </div>
+            )}
+            {priceNotice && !searchingPrices && (
+              <div style={{ marginBottom: 12, padding: "8px 14px", background: "#1a1408", border: "0.5px solid #2a2010", fontSize: 11, fontFamily: "monospace", color: "#c8b48a", letterSpacing: "0.05em" }}>
+                {priceNotice}
               </div>
             )}
             {hiddenGemIdx && wines && (
