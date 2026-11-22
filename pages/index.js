@@ -78,6 +78,7 @@ function parseWineArray(raw) {
   } catch(err) {
     const cleaned = t.substring(s, e + 1)
       .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      .replace(/([{,]\s*)([A-Za-z_]\w*)\s*:/g, '$1"$2":')
       .replace(/,\s*]/g, "]")
       .replace(/,\s*}/g, "}")
       .replace(/"retail_price":\s*([\d,]+)/g, (m, n) => '"retail_price":' + n.replace(/,/g, ""))
@@ -93,8 +94,8 @@ function parseWineArray(raw) {
 
 function buildSearchPrompt(wineLines, hasPrices, currencyNote) {
   return hasPrices
-    ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. These wines are one batch from a longer list, so keep the index numbers exactly as given. You have a strict budget of " + SEARCH_BUDGET + " web searches for this batch, so do not search wine by wine: search by producer, region or retailer page where one query covers several wines, and use your own knowledge for any wine you could not search." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineLines
-    : "For each wine below, rate the quality 1-5 and estimate the typical retail price. These wines are one batch from a longer list, so keep the index numbers exactly as given." + currencyNote + " There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineLines;
+    ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. These wines are one batch from a longer list, so keep the index numbers exactly as given. You have a strict budget of " + SEARCH_BUDGET + " web searches for this batch, so do not search wine by wine: search by producer, region or retailer page where one query covers several wines, and use your own knowledge for any wine you could not search." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{\"index\":1,\"retail_price\":25,\"quality_stars\":4,\"quality_note\":\"short phrase based on critic consensus\",\"markup_pct\":120,\"vintage_note\":\"Exceptional\",\"drinking_window\":\"drink now\"}]\n\nWines:\n" + wineLines
+    : "For each wine below, rate the quality 1-5 and estimate the typical retail price. These wines are one batch from a longer list, so keep the index numbers exactly as given." + currencyNote + " There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{\"index\":1,\"retail_price\":25,\"quality_stars\":4,\"quality_note\":\"short phrase\",\"markup_pct\":null}]\n\nWines:\n" + wineLines;
 }
 
 // One search call (continuing if the API pauses the turn). Returns the parsed array.
@@ -109,6 +110,11 @@ async function searchChunk(prompt) {
       messages,
     });
     messages.push({ role: "assistant", content: sd.content });
+    try {
+      const hosts = new Set();
+      sd.content.forEach(b => { if (b.type === "web_search_tool_result" && Array.isArray(b.content)) b.content.forEach(r => { try { hosts.add(new URL(r.url).hostname.replace(/^www\./, "")); } catch (e) {} }); });
+      if (hosts.size) console.log("Search sources:", Array.from(hosts).join(", "));
+    } catch (e) {}
     if (sd.stop_reason === "pause_turn") continue;
     text = sd.content.filter(b => b.type === "text").map(b => b.text).join("");
     break;
@@ -339,13 +345,13 @@ export default function AskTrevor() {
       const dQuick = await callClaude({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 3000,
-        messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{index:1,quality_stars:4,quality_note:short phrase,retail_price:null,markup_pct:null}]. Wines: " + quickList }]
+        messages: [{ role: "user", content: "You must respond with ONLY a JSON array. No words before or after. No markdown. No backticks. Just start with [ and end with ]. For each wine rate quality 1-5. Format: [{\"index\":1,\"quality_stars\":4,\"quality_note\":\"short phrase\",\"retail_price\":null,\"markup_pct\":null}]. Wines: " + quickList }]
       });
       const tQuick = (dQuick.content.find(b => b.type === "text")?.text || "").replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").trim();
       const iQs = tQuick.indexOf("["); const iQe = tQuick.lastIndexOf("]");
       if (iQs !== -1) {
         try {
-          let quickData = JSON.parse(tQuick.substring(iQs, iQe + 1));
+          let quickData = parseWineArray(tQuick);
           setAnalysis(quickData);
         } catch(e) {
           console.error("Phase 1 parse error:", e.message, "Raw:", tQuick.substring(0, 200));
@@ -398,7 +404,8 @@ export default function AskTrevor() {
 
       let analysisData;
       try {
-      const currencyNote = detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Convert all retail prices to " + detectedCurrency + " using current exchange rates before calculating markup_pct." : "";
+      const ukPriceRule = " Take retail prices from UK retailers only, as the shelf price in pounds sterling (GBP) for a 75cl bottle including VAT. Ignore prices shown in USD ($), EUR or any other currency and ignore US or EU retailers. If the only price you can find is in another currency, convert it to GBP at the current exchange rate. Never return a dollar or euro figure as if it were pounds.";
+      const currencyNote = ukPriceRule + (detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Only after finding the GBP retail price, convert it to " + detectedCurrency + " using current exchange rates before calculating markup_pct, and return retail_price in " + detectedCurrency + "." : "");
       // Search the list in parallel chunks; prices appear as each chunk finishes.
       const chunks = splitIntoChunks(wineList.split("\n"));
       let chunkOffset = 0;
