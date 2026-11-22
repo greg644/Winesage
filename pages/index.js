@@ -94,19 +94,19 @@ function parseWineArray(raw) {
 
 function buildSearchPrompt(wineLines, hasPrices, currencyNote) {
   return hasPrices
-    ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. These wines are one batch from a longer list, so keep the index numbers exactly as given. You have a strict budget of " + SEARCH_BUDGET + " web searches for this batch, so do not search wine by wine: search by producer, region or retailer page where one query covers several wines, and use your own knowledge for any wine you could not search." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{\"index\":1,\"retail_price\":25,\"quality_stars\":4,\"quality_note\":\"short phrase based on critic consensus\",\"markup_pct\":120,\"vintage_note\":\"Exceptional\",\"drinking_window\":\"drink now\"}]\n\nWines:\n" + wineLines
+    ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. These wines are one batch from a longer list, so keep the index numbers exactly as given. You have a strict budget of " + SEARCH_BUDGET + " web searches for this batch, so do not search wine by wine: search by producer, region or retailer page where one query covers several wines, and use your own knowledge for any wine you could not search." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{\"index\":1,\"retail_price\":25,\"quality_stars\":4,\"quality_note\":\"short phrase based on critic consensus\",\"markup_pct\":120,\"price_basis\":\"found\",\"vintage_note\":\"Exceptional\",\"drinking_window\":\"drink now\"}]\n\nWines:\n" + wineLines
     : "For each wine below, rate the quality 1-5 and estimate the typical retail price. These wines are one batch from a longer list, so keep the index numbers exactly as given." + currencyNote + " There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{\"index\":1,\"retail_price\":25,\"quality_stars\":4,\"quality_note\":\"short phrase\",\"markup_pct\":null}]\n\nWines:\n" + wineLines;
 }
 
 // One search call (continuing if the API pauses the turn). Returns the parsed array.
-async function searchChunk(prompt) {
+async function searchChunk(prompt, fallback) {
   const messages = [{ role: "user", content: prompt }];
   let text = "";
   for (let si = 0; si < 4; si++) {
     const sd = await callWithRetry({
       model: SEARCH_MODEL,
       max_tokens: 4000,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      tools: [{ type: "web_search_20250305", name: "web_search", tier: fallback ? "fallback" : "primary" }],
       messages,
     });
     messages.push({ role: "assistant", content: sd.content });
@@ -128,6 +128,20 @@ async function searchChunk(prompt) {
     const fd = await callWithRetry({ model: SEARCH_MODEL, max_tokens: 4000, messages });
     return parseWineArray(fd.content.filter(b => b.type === "text").map(b => b.text).join(""));
   }
+}
+
+// Second pass: only for wines the first pass had to estimate. Looks on Vivino and Wine-Searcher.
+function buildFallbackPrompt(wineLines, currency) {
+  return "For each wine below, find a current retail bottle price on Vivino or Wine-Searcher. These sites may show prices in USD, EUR or another currency, or excluding tax. Convert to pounds sterling (GBP) at the current exchange rate and add 20% UK VAT if the price is stated as excluding tax, so retail_price is a UK shelf price for a 75cl bottle." + (currency !== "GBP" ? " Then convert that GBP price to " + currency + " using the current exchange rate and return retail_price in " + currency + "." : "") + " Only return a price you actually found on those sites. If you could not find one, set retail_price to null and price_basis to \"estimate\". Set markup_pct to round((menu price - retail_price) / retail_price * 100) using the menu price shown, or null if there is none. You have a strict budget of " + SEARCH_BUDGET + " web searches, so search by producer or region where one query covers several wines. Keep the index numbers exactly as given. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{\"index\":1,\"retail_price\":25,\"markup_pct\":120,\"price_basis\":\"found\"}]\n\nWines:\n" + wineLines;
+}
+
+// Apply fallback prices only: nothing else about a wine changes.
+function mergePricesInto(prev, found) {
+  if (!prev) return prev;
+  return prev.map(q => {
+    const a = found.find(x => x.index === q.index);
+    return a ? { ...q, retail_price: a.retail_price, markup_pct: a.markup_pct, price_basis: "found" } : q;
+  });
 }
 
 // Number a chunk's lines 1..n locally, so the model never has to keep global numbers.
@@ -155,7 +169,7 @@ function mergeInto(prev, data) {
   const seen = new Set(prev.map(q => q.index));
   const merged = prev.map(q => {
     const a = data.find(x => x.index === q.index);
-    return a ? { ...q, retail_price: a.retail_price, markup_pct: a.markup_pct, vintage_note: a.vintage_note, drinking_window: a.drinking_window } : q;
+    return a ? { ...q, retail_price: a.retail_price, markup_pct: a.markup_pct, vintage_note: a.vintage_note, drinking_window: a.drinking_window, price_basis: a.price_basis } : q;
   });
   data.forEach(a => { if (!seen.has(a.index)) merged.push(a); });
   return merged;
@@ -412,7 +426,7 @@ export default function AskTrevor() {
 
       let analysisData;
       try {
-      const ukPriceRule = " Take retail prices from UK retailers only, as the shelf price in pounds sterling (GBP) for a 75cl bottle including VAT. Ignore prices shown in USD ($), EUR or any other currency and ignore US or EU retailers. If the only price you can find is in another currency, convert it to GBP at the current exchange rate. Never return a dollar or euro figure as if it were pounds. If you cannot find a UK price for a wine, give your best estimate in GBP rather than leaving it out. Always finish by returning the JSON array, never an explanation.";
+      const ukPriceRule = " Take retail prices from UK retailers only, as the shelf price in pounds sterling (GBP) for a 75cl bottle including VAT. Ignore prices shown in USD ($), EUR or any other currency and ignore US or EU retailers. If the only price you can find is in another currency, convert it to GBP at the current exchange rate. Never return a dollar or euro figure as if it were pounds. If you cannot find a UK price for a wine, give your best estimate in GBP rather than leaving it out. Set price_basis to \"found\" if retail_price comes from a UK retailer page you read, or \"estimate\" if it is your own estimate. Always finish by returning the JSON array, never an explanation.";
       const currencyNote = ukPriceRule + (detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Only after finding the GBP retail price, convert it to " + detectedCurrency + " using current exchange rates before calculating markup_pct, and return retail_price in " + detectedCurrency + "." : "");
       // Search the list in parallel chunks; prices appear as each chunk finishes.
       const chunks = splitIntoChunks(wineList.split("\n"));
@@ -440,6 +454,37 @@ export default function AskTrevor() {
       }
       analysisData = succeeded.flat();
       setAnalysis(prev => mergeInto(prev, analysisData));
+
+      // Second chance: wines the first pass had to estimate get a look on Vivino and Wine-Searcher.
+      try {
+        const allLines = wineList.split("\n");
+        const missing = [];
+        for (let g = 1; g <= allLines.length; g++) {
+          const a = analysisData.find(x => x.index === g);
+          if (!a || a.retail_price == null || a.price_basis === "estimate") missing.push(g);
+        }
+        if (missing.length > 0) {
+          console.log("Fallback price search for " + missing.length + " wines");
+          const fbResults = await Promise.allSettled(splitIntoChunks(missing).map(async idxs => {
+            const prompt = buildFallbackPrompt(numberLocally(idxs.map(g => allLines[g - 1])).join("\n"), detectedCurrency);
+            const d = await searchChunk(prompt, true);
+            return d.map((a, pos) => {
+              const li = parseInt(a.index, 10);
+              const g = (li >= 1 && li <= idxs.length) ? idxs[li - 1] : idxs[pos];
+              return { ...a, index: g };
+            }).filter(a => a.index && a.retail_price != null && a.price_basis !== "estimate");
+          }));
+          const found = fbResults.filter(r => r.status === "fulfilled").map(r => r.value).flat();
+          fbResults.forEach(r => { if (r.status === "rejected") console.warn("Fallback search failed:", r.reason && r.reason.message); });
+          console.log("Fallback found prices for " + found.length + " of " + missing.length + " wines");
+          if (found.length > 0) {
+            analysisData = mergePricesInto(analysisData, found);
+            setAnalysis(prev => mergePricesInto(prev, found));
+          }
+        }
+      } catch (fbErr) {
+        console.warn("Fallback price search skipped:", fbErr.message);
+      }
       const pricedCount = new Set(analysisData.filter(x => x.retail_price != null).map(x => x.index)).size;
       if (pricedCount < wList.length) setPriceNotice("Retail prices found for " + pricedCount + " of " + wList.length + " wines.");
       setSearchingPrices(false);
