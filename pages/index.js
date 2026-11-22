@@ -11,6 +11,7 @@ const SEARCH_MODEL = "claude-haiku-4-5-20251001";
 const SEARCH_BUDGET = 4;
 // The wine list is split into chunks that are searched in parallel.
 // Set CHUNK_SIZE very high (e.g. 999) to go back to a single call.
+const FALLBACK_MIN_MISSING = 3; // run the Vivino/Wine-Searcher second pass only if at least this many wines lack a found price
 const CHUNK_SIZE = 14;
 const MAX_CHUNKS = 4;
 // ---------------------------------------------------------------------------
@@ -463,7 +464,7 @@ export default function AskTrevor() {
           const a = analysisData.find(x => x.index === g);
           if (!a || a.retail_price == null || a.price_basis === "estimate") missing.push(g);
         }
-        if (missing.length > 0) {
+        if (missing.length >= FALLBACK_MIN_MISSING) {
           console.log("Fallback price search for " + missing.length + " wines");
           const fbResults = await Promise.allSettled(splitIntoChunks(missing).map(async idxs => {
             const prompt = buildFallbackPrompt(numberLocally(idxs.map(g => allLines[g - 1])).join("\n"), detectedCurrency);
