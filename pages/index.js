@@ -119,7 +119,15 @@ async function searchChunk(prompt) {
     text = sd.content.filter(b => b.type === "text").map(b => b.text).join("");
     break;
   }
-  return parseWineArray(text);
+  try {
+    return parseWineArray(text);
+  } catch (firstErr) {
+    // The model replied in prose, or ran out of turns before answering. Log it, then ask once for just the JSON.
+    console.log("Search reply had no usable JSON, asking again. Start of reply:", String(text).slice(0, 300));
+    messages.push({ role: "user", content: "Now return the JSON array for ALL wines in this batch, with no other text. Where you could not find a UK retail price, give your best estimate in GBP. Start with [ and end with ]." });
+    const fd = await callWithRetry({ model: SEARCH_MODEL, max_tokens: 4000, messages });
+    return parseWineArray(fd.content.filter(b => b.type === "text").map(b => b.text).join(""));
+  }
 }
 
 // Number a chunk's lines 1..n locally, so the model never has to keep global numbers.
@@ -404,7 +412,7 @@ export default function AskTrevor() {
 
       let analysisData;
       try {
-      const ukPriceRule = " Take retail prices from UK retailers only, as the shelf price in pounds sterling (GBP) for a 75cl bottle including VAT. Ignore prices shown in USD ($), EUR or any other currency and ignore US or EU retailers. If the only price you can find is in another currency, convert it to GBP at the current exchange rate. Never return a dollar or euro figure as if it were pounds.";
+      const ukPriceRule = " Take retail prices from UK retailers only, as the shelf price in pounds sterling (GBP) for a 75cl bottle including VAT. Ignore prices shown in USD ($), EUR or any other currency and ignore US or EU retailers. If the only price you can find is in another currency, convert it to GBP at the current exchange rate. Never return a dollar or euro figure as if it were pounds. If you cannot find a UK price for a wine, give your best estimate in GBP rather than leaving it out. Always finish by returning the JSON array, never an explanation.";
       const currencyNote = ukPriceRule + (detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Only after finding the GBP retail price, convert it to " + detectedCurrency + " using current exchange rates before calculating markup_pct, and return retail_price in " + detectedCurrency + "." : "");
       // Search the list in parallel chunks; prices appear as each chunk finishes.
       const chunks = splitIntoChunks(wineList.split("\n"));
