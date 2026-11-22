@@ -3,8 +3,17 @@ import Head from "next/head";
 
 
 
-// Keep in step with WEB_SEARCH_MAX_USES in pages/api/claude.js
-const SEARCH_BUDGET = 10;
+// ---- Search settings -------------------------------------------------------
+// Model used for the retail price / critic score search call.
+// To test Haiku, change this one line to "claude-haiku-4-5-20251001" and compare the same list.
+const SEARCH_MODEL = "claude-sonnet-4-6";
+// Searches allowed per chunk. Must equal WEB_SEARCH_MAX_USES in pages/api/claude.js.
+const SEARCH_BUDGET = 4;
+// The wine list is split into chunks that are searched in parallel.
+// Set CHUNK_SIZE very high (e.g. 999) to go back to a single call.
+const CHUNK_SIZE = 14;
+const MAX_CHUNKS = 4;
+// ---------------------------------------------------------------------------
 
 async function callClaude(body) {
   const res = await fetch("/api/claude", {
@@ -19,12 +28,104 @@ async function callClaude(body) {
   } catch(e) {
     throw new Error("Server error " + res.status + ": " + text.substring(0, 150));
   }
-  if (res.status === 429 || data.error === "rate_limited") {
+  if (data.error === "rate_limited") {
+    // Our own daily limit (from /api/claude)
     throw new Error("RATE_LIMITED:" + (data.message || "Daily limit reached. Please come back tomorrow."));
+  }
+  if (res.status === 429) {
+    // Anthropic is throttling us (too many tokens per minute), not a daily limit
+    const err = new Error("Trevor is busy at the moment. Please try again in a minute.");
+    err.upstream429 = true;
+    err.retryAfter = parseInt(res.headers.get("retry-after"), 10) || 0;
+    throw err;
   }
   if (data.error) throw new Error("API error: " + JSON.stringify(data.error));
   if (!data.content) throw new Error("No content: " + JSON.stringify(data).substring(0, 200));
   return data;
+}
+
+// Retry once if Anthropic throttles us (parallel chunks make this possible).
+async function callWithRetry(body) {
+  try {
+    return await callClaude(body);
+  } catch (e) {
+    if (!e.upstream429) throw e;
+    const wait = Math.min(Math.max(e.retryAfter || 0, 5), 20) * 1000;
+    await new Promise(r => setTimeout(r, wait));
+    return await callClaude(body);
+  }
+}
+
+// Split an array into at most MAX_CHUNKS balanced chunks of about CHUNK_SIZE.
+function splitIntoChunks(items) {
+  const n = items.length;
+  if (n === 0) return [];
+  const count = Math.min(MAX_CHUNKS, Math.max(1, Math.ceil(n / CHUNK_SIZE)));
+  const size = Math.ceil(n / count);
+  const chunks = [];
+  for (let i = 0; i < n; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+function parseWineArray(raw) {
+  const t = raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").replace(/^[^\[]*/, "").replace(/[^\]]*$/, "").trim();
+  const s = t.indexOf("[");
+  const e = t.lastIndexOf("]");
+  if (s === -1) throw new Error("Analysis failed. Please try again.");
+  let data;
+  try {
+    data = JSON.parse(t.substring(s, e + 1));
+  } catch(err) {
+    const cleaned = t.substring(s, e + 1)
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      .replace(/,\s*]/g, "]")
+      .replace(/,\s*}/g, "}")
+      .replace(/"retail_price":\s*([\d,]+)/g, (m, n) => '"retail_price":' + n.replace(/,/g, ""))
+      .replace(/"markup_pct":\s*([\d,]+)/g, (m, n) => '"markup_pct":' + n.replace(/,/g, ""))
+      .replace(/:\s*N\/A/gi, ": null")
+      .replace(/:\s*"N\/A"/gi, ": null")
+      .replace(/:\s*undefined/gi, ": null");
+    data = JSON.parse(cleaned);
+  }
+  if (!Array.isArray(data)) throw new Error("Analysis failed. Please try again.");
+  return data;
+}
+
+function buildSearchPrompt(wineLines, hasPrices, currencyNote) {
+  return hasPrices
+    ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. These wines are one batch from a longer list, so keep the index numbers exactly as given. You have a strict budget of " + SEARCH_BUDGET + " web searches for this batch, so do not search wine by wine: search by producer, region or retailer page where one query covers several wines, and use your own knowledge for any wine you could not search." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineLines
+    : "For each wine below, rate the quality 1-5 and estimate the typical retail price. These wines are one batch from a longer list, so keep the index numbers exactly as given." + currencyNote + " There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineLines;
+}
+
+// One search call (continuing if the API pauses the turn). Returns the parsed array.
+async function searchChunk(prompt) {
+  const messages = [{ role: "user", content: prompt }];
+  let text = "";
+  for (let si = 0; si < 4; si++) {
+    const sd = await callWithRetry({
+      model: SEARCH_MODEL,
+      max_tokens: 4000,
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages,
+    });
+    messages.push({ role: "assistant", content: sd.content });
+    if (sd.stop_reason === "pause_turn") continue;
+    text = sd.content.filter(b => b.type === "text").map(b => b.text).join("");
+    break;
+  }
+  return parseWineArray(text);
+}
+
+// Merge search results into the existing analysis (keeps the quick quality ratings).
+function mergeInto(prev, data) {
+  if (!prev) return data;
+  const seen = new Set(prev.map(q => q.index));
+  const merged = prev.map(q => {
+    const a = data.find(x => x.index === q.index);
+    return a ? { ...q, retail_price: a.retail_price, markup_pct: a.markup_pct, vintage_note: a.vintage_note, drinking_window: a.drinking_window } : q;
+  });
+  data.forEach(a => { if (!seen.has(a.index)) merged.push(a); });
+  return merged;
 }
 
 function getGreeting() {
@@ -277,64 +378,20 @@ export default function AskTrevor() {
       let analysisData;
       try {
       const currencyNote = detectedCurrency !== "GBP" ? " The menu prices are in " + detectedCurrency + ". Convert all retail prices to " + detectedCurrency + " using current exchange rates before calculating markup_pct." : "";
-      const analysisPrompt = hasPrices
-        ? "For each wine below: (1) search for the average UK retail bottle price across mainstream retailers such as Waitrose, Majestic, Berry Bros and Naked Wines, (2) search for critic scores from Decanter, Wine Spectator, Vivino or Robert Parker and use these to rate quality 1-5 stars, (3) assess the vintage year if shown and use ONLY these exact words for vintage_note: Legendary, Outstanding, Exceptional, Superb, Good, Average, Poor, or n/a if too recent to assess, (4) give a drinking window e.g. drink now, peak 2025-2028, needs time, or past best. You have a strict budget of " + SEARCH_BUDGET + " web searches in total, so do not search wine by wine: search by producer, region or retailer page where one query covers several wines, and use your own knowledge for any wine you could not search." + currencyNote + " Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase based on critic consensus,markup_pct:120,vintage_note:exceptional year,drinking_window:drink now}]\n\nWines:\n" + wineList
-        : "For each wine below, rate the quality 1-5 and estimate the typical retail price." + currencyNote + " There are no menu prices so set markup_pct to null. Return a raw JSON array only. No markdown, no backticks. Start with [ and end with ]. Format: [{index:1,retail_price:25,quality_stars:4,quality_note:short phrase,markup_pct:null}]\n\nWines:\n" + wineList;
-      let analysisText = "";
-      let searchMessages = [{ role: "user", content: analysisPrompt }];
-      // The server caps searches (max_uses) and restricts domains; this loop only handles continuation.
-      for (let si = 0; si < 4; si++) {
-        const sd = await callClaude({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: searchMessages,
-        });
-        searchMessages.push({ role: "assistant", content: sd.content });
-        if (sd.stop_reason === "pause_turn") {
-          setAnalyseStatus("Searching retail prices... (" + (si + 1) + ")");
-          continue;
-        }
-        if (sd.stop_reason === "end_turn") {
-          analysisText = sd.content.filter(b => b.type === "text").map(b => b.text).join("");
-          break;
-        }
-        if (sd.stop_reason === "tool_use") {
-          const toolResults = sd.content.filter(b => b.type === "tool_use").map(b => ({ type: "tool_result", tool_use_id: b.id, content: "done" }));
-          searchMessages.push({ role: "user", content: toolResults });
-          setAnalyseStatus("Searching retail prices... (" + (si + 1) + ")");
-        } else {
-          analysisText = sd.content.filter(b => b.type === "text").map(b => b.text).join("");
-          break;
-        }
+      // Search the list in parallel chunks; prices appear as each chunk finishes.
+      const chunks = splitIntoChunks(wineList.split("\n"));
+      const results = await Promise.allSettled(chunks.map(async chunk => {
+        const data = await searchChunk(buildSearchPrompt(chunk.join("\n"), hasPrices, currencyNote));
+        setAnalysis(prev => mergeInto(prev, data));
+        return data;
+      }));
+      results.forEach(r => { if (r.status === "rejected") console.error("Search chunk failed:", r.reason && r.reason.message); });
+      const succeeded = results.filter(r => r.status === "fulfilled").map(r => r.value);
+      if (succeeded.length === 0) {
+        throw new Error((results[0].reason && results[0].reason.message) || "Analysis failed. Please try again.");
       }
-
-      const t2raw = analysisText;
-      const t2 = t2raw.replace(/```json/gi, "").replace(/```/g, "").replace(/`/g, "").replace(/^[^\[]*/, "").replace(/[^\]]*$/, "").trim();
-      const i2s = t2.indexOf("[");
-      const i2e = t2.lastIndexOf("]");
-      if (i2s === -1) throw new Error("Analysis failed. Please try again.");
-      try {
-        analysisData = JSON.parse(t2.substring(i2s, i2e + 1));
-      } catch(e) {
-        const cleaned = t2.substring(i2s, i2e + 1)
-          .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
-          .replace(/,\s*]/g, "]")
-          .replace(/,\s*}/g, "}")
-          .replace(/"retail_price":\s*([\d,]+)/g, (m, n) => '"retail_price":' + n.replace(/,/g, ""))
-          .replace(/"markup_pct":\s*([\d,]+)/g, (m, n) => '"markup_pct":' + n.replace(/,/g, ""))
-          .replace(/:\s*N\/A/gi, ": null")
-          .replace(/:\s*"N\/A"/gi, ": null")
-          .replace(/:\s*undefined/gi, ": null");
-        analysisData = JSON.parse(cleaned);
-      }
-      setAnalysis(prev => {
-        if (!prev) return analysisData;
-        return prev.map((q, i) => {
-          const a = analysisData.find(x => x.index === q.index) || {};
-          return { ...q, retail_price: a.retail_price, markup_pct: a.markup_pct, vintage_note: a.vintage_note, drinking_window: a.drinking_window };
-        });
-      });
+      analysisData = succeeded.flat();
+      setAnalysis(prev => mergeInto(prev, analysisData));
       setSearchingPrices(false);
       setVerdictExpanded(false);
       analysisDataRef.current = analysisData;
