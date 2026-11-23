@@ -273,7 +273,8 @@ export default function AskTrevor() {
   const choiceTimerRef = useRef(null);
   const restaurantTimerRef = useRef(null);
   const [restaurantName, setRestaurantName] = useState("");
-  const restaurantRef = useRef("");
+  const [showRestaurantModal, setShowRestaurantModal] = useState(false);
+  const restaurantResolveRef = useRef(null);
   const [foodInput, setFoodInput] = useState("");
   const [pairingResult, setPairingResult] = useState(null);
   const [pairingLoading, setPairingLoading] = useState(false);
@@ -342,6 +343,16 @@ export default function AskTrevor() {
     }
   }
 
+  // Resolves the pending log write with the restaurant name (or "Unknown"). The price search never waits for this.
+  function submitRestaurant(skip) {
+    const name = skip ? "" : restaurantName.trim();
+    setShowRestaurantModal(false);
+    if (restaurantResolveRef.current) {
+      restaurantResolveRef.current(name || "Unknown");
+      restaurantResolveRef.current = null;
+    }
+  }
+
   function loadFile(file) {
     if (!file) return;
     const reader = new FileReader();
@@ -372,6 +383,8 @@ export default function AskTrevor() {
     if (!img64) return;
     setAnalysing(true);
     setPriceNotice(null);
+    setRestaurantName("");
+    const restaurantPromise = new Promise(resolve => { restaurantResolveRef.current = resolve; });
     setAnalyseStatus("Reading wine list...");
     try {
       const d1 = await callClaude({
@@ -402,6 +415,7 @@ export default function AskTrevor() {
       if (!wList.length) throw new Error("No wines found in this image. Please make sure you are photographing a wine list — ideally in portrait orientation with good lighting and the full list visible.");
       setWines(wList);
       wListRef.current = wList;
+      setShowRestaurantModal(true); // asked while the ratings and prices load, so it costs no extra time
       const detectedCurrency = wList.find(w => w.currency)?.currency || "GBP";
       const hasPrices = wList.some(w => w.price_bottle || w.price_glass);
 
@@ -531,7 +545,8 @@ export default function AskTrevor() {
         setSearchingPrices(false);
         setVerdictExpanded(false);
         analysisDataRef.current = analysisData;
-        if (analysisData) saveToSheets(wList, analysisData, restaurantRef.current.trim() || "Unknown");
+        // The log row waits for the restaurant name. Prices are already on screen.
+        if (analysisData) restaurantPromise.then(name => saveToSheets(wList, analysisData, name));
       } catch(phase2Err) {
         console.error('Phase 2 error:', phase2Err.message);
         setSearchingPrices(false);
@@ -581,6 +596,8 @@ export default function AskTrevor() {
         setAnalyseStatus("Error: " + (err.message || "Something went wrong."));
       }
       setSearchingPrices(false);
+      setShowRestaurantModal(false);
+      if (restaurantResolveRef.current) { restaurantResolveRef.current("Unknown"); restaurantResolveRef.current = null; }
     } finally {
       setAnalysing(false);
     }
@@ -893,8 +910,32 @@ export default function AskTrevor() {
     border: "#2a2318", gold: "#C9A84C", text: "#f0e6c8", dim: "#c8b48a",
   };
 
+  const restaurantModal = showRestaurantModal ? (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ width: "100%", maxWidth: 380, background: S.bg, border: "1px solid " + S.gold, padding: "24px 22px" }}>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: "1.1rem", color: S.text, marginBottom: 6 }}>Which restaurant are you in?</div>
+        <div style={{ fontFamily: "monospace", fontSize: 11, color: S.dim, marginBottom: 14, letterSpacing: "0.05em" }}>Your scan carries on in the background.</div>
+        <input
+          type="text"
+          autoFocus
+          value={restaurantName}
+          onChange={e => setRestaurantName(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") submitRestaurant(false); }}
+          maxLength={60}
+          placeholder="Restaurant name"
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", background: "transparent", border: "1px solid " + S.border, color: S.text, fontFamily: "monospace", fontSize: 14, outline: "none", marginBottom: 14 }}
+        />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => submitRestaurant(false)} style={{ flex: 1, background: S.gold, color: S.bg, border: "1px solid " + S.gold, padding: "10px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>Save</button>
+          <button onClick={() => submitRestaurant(true)} style={{ flex: 1, background: "transparent", color: S.dim, border: "1px solid " + S.border, padding: "10px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase" }}>Skip</button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (phase === "upload") return (
     <>
+      {restaurantModal}
       <Head>
         <title>Ask Trevor</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -993,6 +1034,7 @@ export default function AskTrevor() {
 
   return (
     <>
+      {restaurantModal}
       <Head>
         <title>Ask Trevor</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1027,7 +1069,7 @@ export default function AskTrevor() {
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", transition: "all 0.2s"
               }}>{tab === "list" ? "Wine List" : "Ask Trevor"}</button>
             ))}
-            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setPriceNotice(null); setTrevorVerdict(null); setVerdictExpanded(true); setRestaurantName(""); restaurantRef.current = ""; }} style={{
+            <button onClick={() => { setPhase("upload"); setWines(null); setAnalysis(null); setMessages([]); setPreview(null); setImg64(null); wineContextRef.current = ""; analysisDataRef.current = null; wListRef.current = []; if (choiceTimerRef.current) clearTimeout(choiceTimerRef.current); if (restaurantTimerRef.current) clearTimeout(restaurantTimerRef.current); setShowChoicePrompt(false); setChosenWine(null); setFoodInput(""); setPairingResult(null); setSearchingPrices(false); setPriceNotice(null); setTrevorVerdict(null); setVerdictExpanded(true); setRestaurantName(""); setShowRestaurantModal(false); if (restaurantResolveRef.current) { restaurantResolveRef.current("Unknown"); restaurantResolveRef.current = null; } }} style={{
               background: "transparent", color: S.dim, border: "1px solid " + S.border,
               padding: "7px 12px", cursor: "pointer", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em"
             }}>New List</button>
@@ -1036,14 +1078,6 @@ export default function AskTrevor() {
 
         {activeTab === "list" && (
           <div style={{ padding: "20px 24px" }}>
-            <input
-              type="text"
-              value={restaurantName}
-              onChange={e => { setRestaurantName(e.target.value); restaurantRef.current = e.target.value; }}
-              placeholder="Restaurant name (optional, for your log)"
-              maxLength={60}
-              style={{ width: "100%", boxSizing: "border-box", marginBottom: 12, padding: "8px 14px", background: "transparent", border: "1px solid " + S.border, color: S.text, fontFamily: "monospace", fontSize: 12, outline: "none" }}
-            />
             {searchingPrices && (
               <div style={{ marginBottom: 12, padding: "8px 14px", background: "#1a1408", border: "0.5px solid #2a2010", fontSize: 11, fontFamily: "monospace", color: "#5a4f3a", letterSpacing: "0.1em", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#c9a84c", opacity: 0.6, animation: "trevorPulse 1.2s ease infinite" }} />
