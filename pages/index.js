@@ -395,7 +395,7 @@ export default function AskTrevor() {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: imgType, data: img64 } },
-            { type: "text", text: "Extract all wines from this wine list image. Some lists may not have prices — that is fine, just set price_glass and price_bottle to null. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. IMPORTANT: create exactly ONE entry per wine. Each item must have: name, origin, price_glass (number or null), price_bottle (number or null), glass_size (125, 175 or 250 or null), category (red/white/rose/sparkling), currency (the ISO currency code detected from the list e.g. GBP, DKK, EUR, USD — default to GBP if unclear). If no prices are shown set all price fields to null. Do not create duplicate entries for the same wine. Ignore magnum and large format prices." }
+            { type: "text", text: "Extract all wines from this wine list image. Some lists may not have prices — that is fine, just set price_glass and price_bottle to null. Return ONLY a raw JSON array. No markdown, no backticks, no code blocks, no explanation. Start with [ and end with ]. IMPORTANT: create exactly ONE entry per wine. Each item must have: name, origin, price_glass (number or null), price_bottle (number or null), glass_size (125, 175 or 250 or null), category (red/white/rose/sparkling), currency_printed (the exact currency symbol or code printed on the list, such as £, $, €, kr or DKK, or null if no currency symbol or code is printed anywhere on the list), currency (the ISO code for that printed symbol or code, e.g. GBP, DKK, EUR, USD. Use GBP whenever currency_printed is null or unclear, because most lists are British). If no prices are shown set all price fields to null. Do not create duplicate entries for the same wine. Ignore magnum and large format prices." }
           ]
         }]
       });
@@ -413,6 +413,8 @@ export default function AskTrevor() {
         wList = JSON.parse(cleaned);
       }
       if (!wList.length) throw new Error("No wines found in this image. Please make sure you are photographing a wine list — ideally in portrait orientation with good lighting and the full list visible.");
+      // Lists with no printed currency are British pounds. Only trust another currency if the list actually shows it.
+      wList.forEach(w => { if (!w.currency_printed || !/^[A-Z]{3}$/.test(String(w.currency || ""))) w.currency = "GBP"; });
       setWines(wList);
       wListRef.current = wList;
       setShowRestaurantModal(true); // asked while the ratings and prices load, so it costs no extra time
